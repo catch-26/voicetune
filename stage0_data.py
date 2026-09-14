@@ -1,24 +1,32 @@
 import csv, json, os, random, re, subprocess
-from datasets import load_dataset, Audio
+import pyarrow.parquet as pq
+from huggingface_hub import list_repo_files, hf_hub_download
 from common import LANGS, FLEURS_CFGS, REPLAY_CFGS, lang_of
 n = int(os.environ["N_PROMPTS"]); dl = os.environ["DOWNLOAD_DIR"]; replay_n = int(os.environ["REPLAY_N"])
 
-def to_wav(ex, wav):
+def to_wav(b, wav):
     if not os.path.exists(wav):
-        open(f"{dl}/tmp_audio", "wb").write(ex["audio"]["bytes"])
+        open(f"{dl}/tmp_audio", "wb").write(b)
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", f"{dl}/tmp_audio", "-ac", "1", "-ar", "16000", wav], check=True)
 
 def fetch(cfg, out, limit=None):
     if os.path.exists(out): return
-    wavdir = f"{dl}/fleurs_wav/{cfg}"; os.makedirs(wavdir, exist_ok=True)
-    ds = load_dataset("google/fleurs", revision="refs/convert/parquet", data_files={"train": f"{cfg}/*train*.parquet"}, split="train", streaming=limit is not None)
-    ds = ds.cast_column("audio", Audio(decode=False))
-    if limit: ds = ds.take(limit)
+    for rev in ["refs/convert/parquet", "main"]:
+        allf = list_repo_files("google/fleurs", repo_type="dataset", revision=rev)
+        files = sorted(f for f in allf if f.endswith(".parquet") and f"{cfg}/" in f and "train" in f)
+        if files: break
+    if not files: raise SystemExit(f"no train parquet for {cfg}. files mentioning it: {[f for f in allf if cfg in f][:20]}")
+    wavdir = f"{dl}/fleurs_wav/{cfg}"; os.makedirs(wavdir, exist_ok=True); i = 0
     with open(out, "w", encoding="utf8") as f:
-        for i, ex in enumerate(ds):
-            wav = f"{wavdir}/{i:05d}.wav"; to_wav(ex, wav)
-            f.write(json.dumps({"id": i, "lang": lang_of(cfg), "text": ex.get("raw_transcription") or ex["transcription"], "wav": wav}, ensure_ascii=False) + "\n")
-    print(f"{cfg}: {i + 1} clips -> {out}")
+        for fn in files:
+            t = pq.read_table(hf_hub_download("google/fleurs", fn, repo_type="dataset", revision=rev))
+            col = "raw_transcription" if "raw_transcription" in t.column_names else "transcription"
+            for a, txt in zip(t.column("audio").to_pylist(), t.column(col).to_pylist()):
+                if limit and i >= limit: break
+                wav = f"{wavdir}/{i:05d}.wav"; to_wav(a["bytes"], wav)
+                f.write(json.dumps({"id": i, "lang": lang_of(cfg), "text": txt, "wav": wav}, ensure_ascii=False) + "\n"); i += 1
+            if limit and i >= limit: break
+    print(f"{cfg}: {i} clips from {len(files)} parquet file(s) -> {out}")
 
 main_limit = None if os.environ["MIX_PUBLIC"] == "full" else int(os.environ["ANCHOR_N"]) + int(os.environ["ANCHOR_EVAL"])
 for cfg in FLEURS_CFGS: fetch(cfg, f"data/fleurs.{cfg}.jsonl", main_limit)

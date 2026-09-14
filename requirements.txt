@@ -1,7 +1,8 @@
 torch
 transformers
 accelerate
-datasets>=3
+huggingface_hub
+pyarrow
 soundfile
 jiwer
 numpy
