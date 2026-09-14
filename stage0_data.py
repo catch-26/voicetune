@@ -11,13 +11,13 @@ def to_wav(ex, wav):
 def fetch(cfg, out, limit=None):
     if os.path.exists(out): return
     wavdir = f"{dl}/fleurs_wav/{cfg}"; os.makedirs(wavdir, exist_ok=True)
-    ds = load_dataset("google/fleurs", cfg, split="train", revision="refs/convert/parquet", streaming=limit is not None)
+    ds = load_dataset("google/fleurs", revision="refs/convert/parquet", data_files={"train": f"{cfg}/*train*.parquet"}, split="train", streaming=limit is not None)
     ds = ds.cast_column("audio", Audio(decode=False))
     if limit: ds = ds.take(limit)
     with open(out, "w", encoding="utf8") as f:
         for i, ex in enumerate(ds):
             wav = f"{wavdir}/{i:05d}.wav"; to_wav(ex, wav)
-            f.write(json.dumps({"id": i, "lang": lang_of(cfg), "text": ex["raw_transcription"], "wav": wav}, ensure_ascii=False) + "\n")
+            f.write(json.dumps({"id": i, "lang": lang_of(cfg), "text": ex.get("raw_transcription") or ex["transcription"], "wav": wav}, ensure_ascii=False) + "\n")
     print(f"{cfg}: {i + 1} clips -> {out}")
 
 for cfg in FLEURS_CFGS: fetch(cfg, f"data/fleurs.{cfg}.jsonl")

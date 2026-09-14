@@ -5,7 +5,8 @@ FLEURS_CFGS = os.environ["FLEURS_CFGS"].split(",")
 REPLAY_CFGS = [c for c in os.environ["REPLAY_CFGS"].split(",") if c]
 HOLDOUT = float(os.environ["HOLDOUT"])
 def lang_of(cfg):
-    return cfg.split("_")[0]
+    c = cfg.split("_")[0]
+    return {"cmn": "zh", "fil": "tl", "ast": "es"}.get(c, c)
 def load(path):
     return [json.loads(l) for l in open(path, encoding="utf8")] if os.path.exists(path) else []
 def split():

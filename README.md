@@ -1,7 +1,8 @@
 # futo-ft: personal multilingual whisper-base -> FUTO Keyboard
 
 needs on PATH: uv, ffmpeg, openssl, git, cmake, a C++ compiler. Linux. AMD (ROCm) or CPU; NVIDIA also works.
-python deps are installed by run.sh into ./.venv via uv, torch backend auto-detected (ROCm / CUDA / CPU).
+python deps are installed by run.sh into ./.venv via uv; the torch build is chosen in the first-run questions (rocm7.2 for AMD).
+changing the torch build later: edit TORCH_BACKEND in config.env, then rm -rf .venv and rerun.
 
 run: `./run.sh`
 - first run asks every setting with a default and writes config.env; delete it to be asked again
