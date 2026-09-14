@@ -10,11 +10,11 @@ if [ ! -f config.env ]; then
   REPLAY_CFGS=$(ask "other-language FLEURS configs to protect from forgetting (empty = none)" "es_419,it_it,ru_ru")
   REPLAY_N=$(ask "clips per protected language (half train, half check)" 150)
   N_PROMPTS=$(ask "sentences to record in total (~5.5 s each; 400 = 35 min, 650 = 1 h)" 400)
-  MIX_PUBLIC=$(ask "also train on FLEURS audio of your languages? y = language model, n = your voice only" n)
+  MIX_PUBLIC=$(ask "FLEURS audio of your languages in the finetune: none | anchor (~200 clips/lang, keeps other speakers good) | full (10 h/lang, retune the base model, no recordings needed)" anchor)
   ACFT_PUBLIC=$(ask "use FLEURS for the ACFT step (recommended)" y)
   DOWNLOAD_DIR=$(ask "download folder" "$PWD/downloads")
   OUT_DIR=$(ask "output folder for the FUTO model" "$PWD/out")
-  printf 'TORCH_BACKEND=%s\nLANGS=%s\nFLEURS_CFGS=%s\nREPLAY_CFGS=%s\nREPLAY_N=%s\nN_PROMPTS=%s\nMIX_PUBLIC=%s\nACFT_PUBLIC=%s\nDOWNLOAD_DIR=%s\nOUT_DIR=%s\nHOLDOUT=0.15\nPORT=8443\nFT_EPOCHS=3\nACFT_EPOCHS=8\nFORGET_TOL=0.10\n' \
+  printf 'ANCHOR_N=200\nANCHOR_EVAL=100\nTORCH_BACKEND=%s\nLANGS=%s\nFLEURS_CFGS=%s\nREPLAY_CFGS=%s\nREPLAY_N=%s\nN_PROMPTS=%s\nMIX_PUBLIC=%s\nACFT_PUBLIC=%s\nDOWNLOAD_DIR=%s\nOUT_DIR=%s\nHOLDOUT=0.15\nPORT=8443\nFT_EPOCHS=3\nACFT_EPOCHS=8\nFORGET_TOL=0.10\n' \
     "$TORCH_BACKEND" "$LANGS" "$FLEURS_CFGS" "$REPLAY_CFGS" "$REPLAY_N" "$N_PROMPTS" "$MIX_PUBLIC" "$ACFT_PUBLIC" "$DOWNLOAD_DIR" "$OUT_DIR" > config.env
   echo "saved to config.env (edit or delete to redo)"
 fi
@@ -38,7 +38,7 @@ if [ "$TORCH_BACKEND" != cpu ] && ! $PY -c "import torch, sys; sys.exit(0 if tor
 fi
 [ -f data/prompts.txt ] || $PY stage0_data.py
 n=$( [ -f data/manifest.jsonl ] && wc -l < data/manifest.jsonl || echo 0 )
-if [ "$n" -lt "$N_PROMPTS" ]; then
+if [ "$N_PROMPTS" -gt 0 ] && [ "$n" -lt "$N_PROMPTS" ]; then
   echo "recorded $n/$N_PROMPTS — starting recorder"
   $PY stage1_record.py
 fi

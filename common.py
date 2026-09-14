@@ -13,8 +13,12 @@ def split():
     r = load("data/manifest.jsonl")
     hold = lambda x: x["id"] % 100 < HOLDOUT * 100
     return [x for x in r if not hold(x)], [x for x in r if hold(x)]
+ANCHOR_EVAL = int(os.environ["ANCHOR_EVAL"])
 def fleurs():
-    return [x for c in FLEURS_CFGS for x in load(f"data/fleurs.{c}.jsonl")]
+    tr, ev = [], []
+    for c in FLEURS_CFGS:
+        r = load(f"data/fleurs.{c}.jsonl"); tr += r[:-ANCHOR_EVAL]; ev += r[-ANCHOR_EVAL:]
+    return tr, ev
 def replay():
     tr, ev = [], []
     for c in REPLAY_CFGS:

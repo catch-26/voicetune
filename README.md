@@ -9,8 +9,10 @@ run: `./run.sh`
 - everything downloaded (base model, FLEURS audio, whisper.cpp, openai/whisper) lands in the download folder and is reused
 - recording: open the https URL on the phone, accept the cert warning, mic check with playback, then read; prompts alternate
   between your languages and show the language tag; recorder exits at N_PROMPTS; rerun ./run.sh anytime, it resumes
-- finetune trains on your recordings (+ a small replay slice of other languages) and stops if your-language WER did not
-  improve or any protected language got worse by more than FORGET_TOL (models/eval.json); `FORCE=1 ./run.sh` continues
+- finetune modes (MIX_PUBLIC): none = your voice only; anchor = your voice + ~200 FLEURS clips per language so other
+  speakers stay good (default); full = all FLEURS audio, for retuning the base model to languages (set N_PROMPTS=0 to skip recording)
+- three gates after the finetune (models/eval.json): your own held-out WER must improve, other speakers of your languages
+  and the protected languages must not get worse by more than FORGET_TOL; `FORCE=1 ./run.sh` continues anyway
 - output: <out folder>/whisper-base-en-de-acft-q8_0.bin -> copy to phone -> FUTO Keyboard voice input -> import model
 
 optional inputs per language <xx>: data/vocab.<xx>.txt (your own sentences with names/jargon),

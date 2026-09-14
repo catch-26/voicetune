@@ -20,11 +20,13 @@ def fetch(cfg, out, limit=None):
             f.write(json.dumps({"id": i, "lang": lang_of(cfg), "text": ex.get("raw_transcription") or ex["transcription"], "wav": wav}, ensure_ascii=False) + "\n")
     print(f"{cfg}: {i + 1} clips -> {out}")
 
-for cfg in FLEURS_CFGS: fetch(cfg, f"data/fleurs.{cfg}.jsonl")
+main_limit = None if os.environ["MIX_PUBLIC"] == "full" else int(os.environ["ANCHOR_N"]) + int(os.environ["ANCHOR_EVAL"])
+for cfg in FLEURS_CFGS: fetch(cfg, f"data/fleurs.{cfg}.jsonl", main_limit)
 for cfg in REPLAY_CFGS: fetch(cfg, f"data/replay.{cfg}.jsonl", replay_n)
 
 ok = lambda s: 4 <= len(s.split()) <= 20 and not re.search(r"\d", s)
 per_lang = {}
+if n == 0: open("data/prompts.txt", "w").close(); raise SystemExit("no recordings requested")
 for lang, cfg in zip(LANGS, FLEURS_CFGS):
     if os.path.exists(f"data/sentences_raw.{lang}.tsv"):
         lines = [r["sentence"] for r in csv.DictReader(open(f"data/sentences_raw.{lang}.tsv", encoding="utf8"), delimiter="\t", quoting=csv.QUOTE_NONE)]

@@ -9,7 +9,7 @@ ref = full.model.to(DEV).eval()
 tgt = copy.deepcopy(full.model).to(DEV).train()
 train, _ = split()
 train = train + replay()[0]
-if os.environ["ACFT_PUBLIC"] == "y": train = train + fleurs()
+if os.environ["ACFT_PUBLIC"] == "y": train = train + fleurs()[0]
 print(f"acft clips {len(train)}")
 
 def enc(m, x, n_ctx):
