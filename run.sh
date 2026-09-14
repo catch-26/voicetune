@@ -25,7 +25,7 @@ command -v uv >/dev/null || { echo "uv not found: install it from astral.sh/uv";
 [ -d .venv ] || uv venv --python 3.13
 if [ ! -f .venv/.installed ]; then
   if [ "$TORCH_BACKEND" = auto ]; then uv pip install --torch-backend=auto -r requirements.txt
-  else uv pip install --index "pytorch=https://download.pytorch.org/whl/$TORCH_BACKEND" -r requirements.txt; fi
+  else uv pip install --index "pytorch=https://download.pytorch.org/whl/$TORCH_BACKEND" torch && uv pip install -r requirements.txt; fi
   touch .venv/.installed
 fi
 PY=.venv/bin/python
