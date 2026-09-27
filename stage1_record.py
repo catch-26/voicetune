@@ -1,4 +1,4 @@
-import http.server, json, os, ssl, subprocess, sys, socket
+import http.server, json, os, shutil, ssl, subprocess, sys, socket
 from urllib.parse import urlparse, parse_qs
 PORT = int(os.environ["PORT"]); N = int(os.environ["N_PROMPTS"])
 prompts = [l.split("\t", 1) for l in open("data/prompts.txt", encoding="utf8").read().splitlines()]
@@ -6,8 +6,19 @@ man = {}
 if os.path.exists("data/manifest.jsonl"):
     for l in open("data/manifest.jsonl", encoding="utf8"):
         r = json.loads(l); man[r["id"]] = r
-if not os.path.exists("cert.pem"):
+if not os.path.exists("cert.pem") and shutil.which("openssl"):
     subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "key.pem", "-out", "cert.pem", "-days", "3650", "-subj", "/CN=rec"], check=True)
+elif not os.path.exists("cert.pem"):
+    import datetime
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, "rec")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(now).not_valid_after(now + datetime.timedelta(days=3650)).sign(key, hashes.SHA256())
+    open("key.pem", "wb").write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+    open("cert.pem", "wb").write(cert.public_bytes(serialization.Encoding.PEM))
 
 PAGE = """<!doctype html><meta name=viewport content="width=device-width">
 <body style="font-family:sans-serif;margin:24px;text-align:center">
@@ -64,9 +75,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == "/retake":
             man.pop(i, None); write_manifest(); return self.send("{}")
         raw = self.rfile.read(int(self.headers["Content-Length"]))
-        open("data/tmp.webm", "wb").write(raw)
+        src = f"data/raw/{i:05d}.webm"; open(src, "wb").write(raw)
         wav = f"data/wav/{i:05d}.wav"
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", "data/tmp.webm", "-ac", "1", "-ar", "16000", wav], check=True)
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-ac", "1", "-ar", "16000", wav], check=True)
         man[i] = {"id": i, "lang": prompts[i][0], "text": prompts[i][1], "wav": wav}; write_manifest(); self.send("{}")
         if len(man) >= min(N, len(prompts)):
             print("target reached, exiting recorder"); sys.stdout.flush(); os._exit(0)

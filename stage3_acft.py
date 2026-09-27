@@ -1,7 +1,8 @@
-import copy, os, random, torch
+import copy, os, random, shutil, torch
+from huggingface_hub import hf_hub_download
 from torch.nn import functional as F
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
-from common import DEV, split, fleurs, replay, audio
+from common import DEV, BASE, lang_kw, split, fleurs, replay, audio
 EPOCHS = int(os.environ["ACFT_EPOCHS"])
 proc = WhisperProcessor.from_pretrained("models/ft")
 full = WhisperForConditionalGeneration.from_pretrained("models/ft")
@@ -19,14 +20,14 @@ def enc(m, x, n_ctx):
     if n_ctx == 1500: return e(x).last_hidden_state
     h = F.gelu(e.conv1(x)); h = F.gelu(e.conv2(h)).permute(0, 2, 1)
     h = F.dropout(h + e.embed_positions.weight[:n_ctx], p=e.dropout, training=e.training)
-    for layer in e.layers: h = layer(h, None, layer_head_mask=None)[0]
+    for layer in e.layers: h = layer(h, None)
     return e.layer_norm(h)
 
 def step(r):
     a, sr = audio(r); length = len(a) / sr
     if length > 29: return None
     x = proc.feature_extractor(a, sampling_rate=sr, return_tensors="pt").input_features.to(DEV)
-    proc.tokenizer.set_prefix_tokens(language=r["lang"], task="transcribe")
+    proc.tokenizer.set_prefix_tokens(**lang_kw(r["lang"]))
     ids = torch.tensor([proc.tokenizer(r["text"]).input_ids]).to(DEV)
     n = int(round(1500 / 30 * length)); j = min(64, n // 3)
     n += random.randint(-j, j)
@@ -43,3 +44,4 @@ for ep in range(EPOCHS):
     print(f"epoch {ep} loss {sum(losses)/len(losses):.5f}")
 full.model = tgt.eval().cpu()
 full.save_pretrained("models/acft"); proc.save_pretrained("models/acft")
+shutil.copy(hf_hub_download(BASE, "vocab.json"), "models/acft/vocab.json")

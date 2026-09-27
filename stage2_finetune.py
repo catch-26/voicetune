@@ -1,8 +1,7 @@
 import json, os, sys, torch, jiwer
 from collections import defaultdict
 from transformers import WhisperProcessor, WhisperForConditionalGeneration, Seq2SeqTrainer, Seq2SeqTrainingArguments
-from common import DEV, split, fleurs, replay, audio, norm
-BASE = "openai/whisper-base"
+from common import DEV, BASE, lang_kw, split, fleurs, replay, audio, norm
 proc = WhisperProcessor.from_pretrained(BASE)
 train, test = split()
 replay_train, replay_eval = replay()
@@ -12,7 +11,7 @@ train = train + replay_train
 print(f"train {len(train)} (fleurs {len(fleurs_train) if os.environ['MIX_PUBLIC'] != 'none' else 0}, replay {len(replay_train)}) own-test {len(test)} other-speaker-check {len(fleurs_eval)} forget-check {len(replay_eval)}")
 
 def label_ids(r):
-    proc.tokenizer.set_prefix_tokens(language=r["lang"], task="transcribe")
+    proc.tokenizer.set_prefix_tokens(**lang_kw(r["lang"]))
     return proc.tokenizer(r["text"]).input_ids
 
 class DS(torch.utils.data.Dataset):
@@ -34,7 +33,7 @@ def wer_by_lang(model, rs):
     for r in rs:
         a, sr = audio(r)
         f = proc(a, sampling_rate=sr, return_tensors="pt").input_features.to(model.device)
-        with torch.no_grad(): ids = model.generate(f, language=r["lang"], task="transcribe")
+        with torch.no_grad(): ids = model.generate(f, **lang_kw(r["lang"]))
         hyp[r["lang"]].append(" ".join(norm(proc.batch_decode(ids, skip_special_tokens=True)[0]))); ref[r["lang"]].append(" ".join(norm(r["text"])))
     return {k: jiwer.wer(ref[k], hyp[k]) for k in ref}
 

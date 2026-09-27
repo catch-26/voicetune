@@ -4,6 +4,10 @@ LANGS = os.environ["LANGS"].split(",")
 FLEURS_CFGS = os.environ["FLEURS_CFGS"].split(",")
 REPLAY_CFGS = [c for c in os.environ["REPLAY_CFGS"].split(",") if c]
 HOLDOUT = float(os.environ["HOLDOUT"])
+BASE = "openai/whisper-" + os.environ.get("WHISPER_MODEL", "base")
+EN_ONLY = BASE.endswith(".en")
+def lang_kw(lang):
+    return {} if EN_ONLY else {"language": lang, "task": "transcribe"}
 def lang_of(cfg):
     c = cfg.split("_")[0]
     return {"cmn": "zh", "fil": "tl", "ast": "es"}.get(c, c)
