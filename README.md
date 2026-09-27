@@ -1,6 +1,10 @@
-# stt-ft: personal speech-to-text finetune -> phone
+# stt-tts-ft: personal speech-to-text finetune -> phone, and a German Kokoro voice of the same recordings
 
-run: `./run.sh` (the only entry point; it installs, then runs). Linux. AMD first, CPU fallback; NVIDIA also works.
+run: `./run.sh [stt|tts|both]` (the only entry point; it installs, then runs). without an argument it asks, default = last choice
+(RUN_LAST in config.env). both workflows share config.env, the recorder, data/, the download folder and the out folder;
+recordings made for one are reused by the other. Linux. AMD first, CPU fallback; NVIDIA also works.
+several GPUs: the first run lists them and asks once (GPU= in config.env, exported as HIP_VISIBLE_DEVICES/CUDA_VISIBLE_DEVICES);
+delete that line to be asked again.
 record -> finetune -> quantize -> export. two engines:
 - parakeet (default): NeMo finetune -> transcribe.cpp GGUF -> Offline Voice Input (notune/android_transcribe_app), Manage speech models -> import
 - whisper: transformers finetune -> ACFT -> whisper.cpp GGML q8_0 -> FUTO Keyboard voice input -> import model
@@ -45,12 +49,31 @@ matches NeMo's reference loss) replaces it. it skips the fastemit/omega training
 optional inputs per language <xx>: data/vocab.<xx>.txt (your own sentences with names/jargon),
 data/sentences_raw.<xx>.txt or a Common Voice data/sentences_raw.<xx>.tsv to replace FLEURS as prompt source.
 
+tts (German, Kokoro-82M via the kikiri-tts recipe, pinned: semidark/kikiri-tts a12d041, StyleTTS2 b1956da, kokoro b96fef9):
+- needs de in LANGS. asks TTS_CLIPS (German sentences in total, default 600), TTS_VOICE, TTS_BASE
+- prompts: stage0 as before, then tts_prompts.py appends German sentences from the Common Voice sentence-collector list (CC0)
+  until TTS_CLIPS, picked to cover common German phoneme pairs; the recorder then asks for them after the STT prompts
+- recorder: keeps each original upload in data/raw/<id>.webm (the 16 kHz wav alone is too narrow for TTS); with tts selected it
+  also asks the browser for unprocessed audio (no echo cancel / noise suppression / auto gain) at 128 kbps. German clips recorded
+  before this version have no original: the tts run offers to re-record them
+- tts_prep.py: original -> 24 kHz mono, trim silence, keep 2-30 s, stock Whisper check (TTS_GATE_MODEL, drop above TTS_GATE_WER;
+  cached in data/tts/gate.jsonl), phonemes via the misaki fork German G2P then ʏ->y (Kokoro has no ʏ), same held-out split as STT.
+  report: data/tts/report.json
+- tts_train.py: base (default kikiri-tts/kikiri-german-base-51speakers-synthetic, German stage-1 base, Apache-2.0, trained on
+  synthetic audio of undisclosed origin; hexgrad/Kokoro-82M/kokoro-v1_0.pth is the English alternative) -> stage 1 on your clips
+  (trains the style encoder the base lacks) -> stage 2 -> voicepack -> kikiri test sentences -> Whisper WER (models/tts/eval.json)
+- ROCm limits from kikiri: fp32, batch 4 (TTS_BATCH), single GPU. the first ROCm run compiles kernels for 10-30 min before step 1
+- phonemizer: the system espeak-ng is used when present (bundled loader symlinked to it), else the bundled one. the version is
+  written next to the model; the browser G2P must match it and map ʏ->y (kikiri's KPipeline drops ʏ instead)
+- output: <out>/kokoro-de-<voice>.pth, <voice>.pt, kokoro-de-<voice>.config.json, kokoro-de-<voice>.g2p.txt
+- redo: data/tts to redo prep, models/tts to retrain (stage1.done/stage2.done mark finished stages), the out .pth to re-export
+
 state: data/manifest.jsonl. parakeet: delete models/parakeet to retrain. whisper: models/ft to retrain, models/acft to redo ACFT.
 the out file to re-export, .venv-<engine> to reinstall python deps, .tools to redo the tool fallbacks,
 <download folder>/third_party/<repo>/build-* to rebuild the tools.
 
 versioning: every release gets a 5-character id [a-z0-9] derived from a hash of the release files. it is stored in
-VERSION and appended to the archive name: stt-ft-<id>.zip. compute it from the folder root after all changes, with
+VERSION and appended to the archive name: stt-tts-ft-<id>.zip. compute it from the folder root after all changes, with
 VERSION itself and local state (.venv*, .tools, data, models, downloads, out, config.env, *.pem) excluded:
 `find . -type f ! -name VERSION ! -path './.venv*' ! -path './.tools/*' ! -path './data/*' ! -path './models/*' ! -path './downloads/*' ! -path './out/*' ! -name config.env ! -name '*.pem' | sort | xargs sha256sum | sha256sum | python3 -c "import sys; n=int(sys.stdin.read()[:64],16); a='0123456789abcdefghijklmnopqrstuvwxyz'; print(''.join(a[n//36**i%36] for i in range(5)))" > VERSION`
 same files give the same id; any change gives a new one.

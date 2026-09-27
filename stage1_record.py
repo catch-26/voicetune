@@ -1,6 +1,8 @@
 import http.server, json, os, shutil, ssl, subprocess, sys, socket
 from urllib.parse import urlparse, parse_qs
 PORT = int(os.environ["PORT"]); N = int(os.environ["N_PROMPTS"])
+TTS = "tts" in os.environ.get("RUN", "")
+os.makedirs("data/raw", exist_ok=True)
 prompts = [l.split("\t", 1) for l in open("data/prompts.txt", encoding="utf8").read().splitlines()]
 man = {}
 if os.path.exists("data/manifest.jsonl"):
@@ -37,8 +39,8 @@ PAGE = """<!doctype html><meta name=viewport content="width=device-width">
 </div>
 <script>
 let id, mr, chunks, lastId, stream;
-const rec = async (onstop) => {stream = stream || await navigator.mediaDevices.getUserMedia({audio:true});
- chunks=[]; mr=new MediaRecorder(stream); mr.ondataavailable=e=>chunks.push(e.data); mr.onstop=onstop; mr.start()};
+const rec = async (onstop) => {stream = stream || await navigator.mediaDevices.getUserMedia({audio:MIC});
+ chunks=[]; mr=new MediaRecorder(stream, REC); mr.ondataavailable=e=>chunks.push(e.data); mr.onstop=onstop; mr.start()};
 tb.onclick=async()=>{if(mr&&mr.state=='recording'){mr.stop();tb.textContent='test record';return}
  await rec(()=>{ta.src=URL.createObjectURL(new Blob(chunks));go.disabled=false}); tb.textContent='stop'};
 go.onclick=()=>{setup.hidden=true;main.hidden=false;next()};
@@ -52,6 +54,9 @@ r.onclick=async()=>{if(lastId==null)return;await fetch('/retake?id='+lastId,{met
 pl.onclick=()=>{if(lastId!=null)new Audio('/wav?id='+lastId).play()};
 </script>"""
 
+MIC = "{echoCancellation:false,noiseSuppression:false,autoGainControl:false}" if TTS else "true"
+REC = "{audioBitsPerSecond:128000}" if TTS else "{}"
+
 def write_manifest():
     with open("data/manifest.jsonl", "w", encoding="utf8") as f:
         for r in sorted(man.values(), key=lambda r: r["id"]): f.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -62,7 +67,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Content-Length", len(b)); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         p = urlparse(self.path).path
-        if p == "/": return self.send(PAGE, "text/html; charset=utf-8")
+        if p == "/": return self.send(PAGE.replace("MIC", MIC).replace("REC", REC), "text/html; charset=utf-8")
         if p == "/next":
             todo = [i for i in range(min(N, len(prompts))) if i not in man]
             if not todo: return self.send(json.dumps({"done": True}))
@@ -75,10 +80,10 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == "/retake":
             man.pop(i, None); write_manifest(); return self.send("{}")
         raw = self.rfile.read(int(self.headers["Content-Length"]))
-        src = "data/tmp.webm"; open(src, "wb").write(raw)
+        src = f"data/raw/{i:05d}.webm"; open(src, "wb").write(raw)
         wav = f"data/wav/{i:05d}.wav"
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-ac", "1", "-ar", "16000", wav], check=True)
-        man[i] = {"id": i, "lang": prompts[i][0], "text": prompts[i][1], "wav": wav}; write_manifest(); self.send("{}")
+        man[i] = {"id": i, "lang": prompts[i][0], "text": prompts[i][1], "wav": wav, "raw": src}; write_manifest(); self.send("{}")
         if len(man) >= min(N, len(prompts)):
             print("target reached, exiting recorder"); sys.stdout.flush(); os._exit(0)
     def log_message(self, *a): pass
