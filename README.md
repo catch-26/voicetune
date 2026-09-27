@@ -1,26 +1,21 @@
-# futo-ft: personal whisper finetune -> FUTO Keyboard, and/or an OmniVoice clone of your voice
+# futo-ft: personal whisper finetune -> FUTO Keyboard
 
 run: `./run.sh` (the only entry point; it installs, then runs). Linux. AMD (ROCm) first, CPU fallback; NVIDIA also works.
-
-modes (MODE in config.env, asked first):
-- stt: record -> whisper finetune -> ACFT -> FUTO model
-- voice: record (~20 sentences) -> OmniVoice voice clone
-- both: one recording session feeds both; the voice clone runs first, so a failed finetune gate does not block it
-config.env files from before modes existed have no MODE and run as stt; add MODE=both to get the clone too.
+record -> whisper finetune -> ACFT -> quantized FUTO model. the OmniVoice voice clone lives in its own runtime (omnivoice-rt).
 
 bootstrap (all inside this folder or the download folder; system tools are used when present):
 - uv: system uv, else the official release binary into .tools/bin (fetch.py, needs only python3)
 - python 3.13: uv provides it if the system has none
-- one venv .venv for everything: torch/torchaudio from the TORCH_BACKEND index (rocm7.2 for AMD), transformers>=5.3
-  (OmniVoice needs it; stt runs on it too), omnivoice only when MODE is voice or both
+- one venv .venv for everything: torch from the TORCH_BACKEND index (rocm7.2 for AMD), transformers>=5.3
+  (the stage code targets the transformers 5 API)
 - hf: system hf, else the one in .venv; models are prefetched into <download folder>/hf
 - ffmpeg: system, else the static imageio-ffmpeg build linked to .tools/bin/ffmpeg
 - openssl: system, else the cert is made with python cryptography
-- stt export only: git (else GitHub tarball), cmake and make (else cmake + ninja as uv tools),
+- export step only: git (else GitHub tarball), cmake and make (else cmake + ninja as uv tools),
   C++ compiler (else zig via the ziglang uv tool, wrappers in .tools/bin)
 changing the torch build: edit TORCH_BACKEND, rm -rf .venv, rerun.
 
-GPU: finetune, ACFT, reference selection and OmniVoice run on the GPU torch sees (ROCm shows as cuda);
+GPU: finetune and ACFT run on the GPU torch sees (ROCm shows as cuda);
 run.sh prints the torch/hip version and asks before falling back to CPU. DEVICE=cpu ./run.sh forces CPU.
 whisper.cpp (quantize + one sanity transcription) is built for CPU; it does not need the GPU.
 
@@ -33,15 +28,7 @@ first run asks every setting with a default and writes config.env; delete it to 
   speakers stay good (default); full = all FLEURS audio, for retuning the base model to languages (set N_PROMPTS=0 to skip recording)
 - three gates after the finetune (models/eval.json): your own held-out WER must improve, other speakers of your languages
   and the protected languages must not get worse by more than FORGET_TOL; `FORCE=1 ./run.sh` continues anyway
-- stt output: <out folder>/whisper-<size>-<langs>-acft-q8_0.bin -> copy to phone -> FUTO Keyboard voice input -> import model
-
-voice clone:
-- per language the recording closest to 8 s whose whisper-base transcript matches the prompt best becomes the reference;
-  it is cut from the original phone audio in data/raw (full band, 24 kHz); recordings made before data/raw existed fall
-  back to the 16 kHz data/wav copy
-- output: <out folder>/voice.<xx>.pt (reusable OmniVoice prompt) and voice.<xx>.sample.wav to listen to;
-  data/voice/<xx>.wav + <xx>.txt are the reference pair (also usable as reference audio/text in other zero-shot TTS)
-- redo: delete <out folder>/voice.*.pt (keeps the chosen reference) or also data/voice/ (picks again)
+- output: <out folder>/whisper-<size>-<langs>-acft-q8_0.bin -> copy to phone -> FUTO Keyboard voice input -> import model
 
 optional inputs per language <xx>: data/vocab.<xx>.txt (your own sentences with names/jargon),
 data/sentences_raw.<xx>.txt or a Common Voice data/sentences_raw.<xx>.tsv to replace FLEURS as prompt source.

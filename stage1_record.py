@@ -7,7 +7,7 @@ if os.path.exists("data/manifest.jsonl"):
     for l in open("data/manifest.jsonl", encoding="utf8"):
         r = json.loads(l); man[r["id"]] = r
 if not os.path.exists("cert.pem") and shutil.which("openssl"):
-    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "key.pem", "-out", "cert.pem", "-days", "3650", "-subj", "/CN=rec"], check=True)
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", "key.pem", "-out", "cert.pem", "-days", "3650", "-subj", "/CN=rec"], check=True, stderr=subprocess.DEVNULL)
 elif not os.path.exists("cert.pem"):
     import datetime
     from cryptography import x509
@@ -75,7 +75,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == "/retake":
             man.pop(i, None); write_manifest(); return self.send("{}")
         raw = self.rfile.read(int(self.headers["Content-Length"]))
-        src = f"data/raw/{i:05d}.webm"; open(src, "wb").write(raw)
+        src = "data/tmp.webm"; open(src, "wb").write(raw)
         wav = f"data/wav/{i:05d}.wav"
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-ac", "1", "-ar", "16000", wav], check=True)
         man[i] = {"id": i, "lang": prompts[i][0], "text": prompts[i][1], "wav": wav}; write_manifest(); self.send("{}")
