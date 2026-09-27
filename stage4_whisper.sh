@@ -5,8 +5,8 @@ get() { [ -d "$2" ] && return; if command -v git >/dev/null; then git clone --de
 get https://github.com/ggml-org/whisper.cpp "$TP/whisper.cpp"
 get https://github.com/openai/whisper "$TP/whisper"
 $PY "$TP/whisper.cpp/models/convert-h5-to-ggml.py" models/acft "$TP/whisper" "$OUT_DIR"
-B="$TP/whisper.cpp/build/bin"
-[ -x "$B/whisper-quantize" ] || { cmake -S "$TP/whisper.cpp" -B "$TP/whisper.cpp/build" -DCMAKE_BUILD_TYPE=Release; cmake --build "$TP/whisper.cpp/build" -j --target whisper-quantize whisper-cli; }
+source ./ggml_build.sh
+B=$(build "$TP/whisper.cpp" GGML "" whisper-quantize whisper-cli)
 name="$OUT_DIR/whisper-$WHISPER_MODEL-$(echo "$LANGS" | tr , -)-acft-q8_0.bin"
 "$B/whisper-quantize" "$OUT_DIR/ggml-model.bin" "$name" q8_0
 wav=$($PY -c "from common import split, fleurs; print((split()[1] or fleurs()[1])[0]['wav'])")

@@ -4,7 +4,8 @@ LANGS = os.environ["LANGS"].split(",")
 FLEURS_CFGS = os.environ["FLEURS_CFGS"].split(",")
 REPLAY_CFGS = [c for c in os.environ["REPLAY_CFGS"].split(",") if c]
 HOLDOUT = float(os.environ["HOLDOUT"])
-BASE = "openai/whisper-" + os.environ.get("WHISPER_MODEL", "base")
+ENGINE = os.environ.get("ENGINE", "whisper")
+BASE = os.environ["PARAKEET_MODEL"] if ENGINE == "parakeet" else "openai/whisper-" + os.environ.get("WHISPER_MODEL", "base")
 EN_ONLY = BASE.endswith(".en")
 def lang_kw(lang):
     return {} if EN_ONLY else {"language": lang, "task": "transcribe"}
@@ -32,4 +33,4 @@ def replay():
 def audio(r):
     return sf.read(r["wav"], dtype="float32")
 def norm(s):
-    return re.sub(r"[^\w\s]", "", s.lower()).split()
+    return re.sub(r"[^\w\s]", "", s.lower().replace("ß", "ss")).split()
