@@ -22,37 +22,7 @@ elif not os.path.exists("cert.pem"):
     open("key.pem", "wb").write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
     open("cert.pem", "wb").write(cert.public_bytes(serialization.Encoding.PEM))
 
-PAGE = """<!doctype html><meta name=viewport content="width=device-width">
-<body style="font-family:sans-serif;margin:24px;text-align:center">
-<div id=setup>
-<h3>mic check</h3>
-<p>hold the phone as you do when dictating. tap, say one sentence, tap again, then listen.</p>
-<button id=tb style="font-size:1.3em;padding:16px 30px">test record</button>
-<p><audio id=ta controls></audio></p>
-<p style="text-align:left;font-size:0.95em">tips: normal dictation pace, no extra pauses; say punctuation only if you would dictate it; a misread sentence is fine, just tap retake; take a break every 50.</p>
-<button id=go style="font-size:1.3em;padding:16px 30px" disabled>sounds fine, start</button>
-</div>
-<div id=main hidden>
-<div id=c></div><p id=t style="font-size:1.6em;min-height:4em"></p>
-<button id=b style="font-size:1.5em;padding:24px 40px">record</button>
-<p><button id=r>retake last</button> <button id=pl>play last</button></p>
-</div>
-<script>
-let id, mr, chunks, lastId, stream;
-const rec = async (onstop) => {stream = stream || await navigator.mediaDevices.getUserMedia({audio:MIC});
- chunks=[]; mr=new MediaRecorder(stream, REC); mr.ondataavailable=e=>chunks.push(e.data); mr.onstop=onstop; mr.start()};
-tb.onclick=async()=>{if(mr&&mr.state=='recording'){mr.stop();tb.textContent='test record';return}
- await rec(()=>{ta.src=URL.createObjectURL(new Blob(chunks));go.disabled=false}); tb.textContent='stop'};
-go.onclick=()=>{setup.hidden=true;main.hidden=false;next()};
-async function next(){const j=await (await fetch('/next')).json();
- if(j.done){t.textContent='all done, close this page';b.disabled=true;return}
- id=j.id;c.textContent=j.n+' / '+j.total+'   ['+j.lang+']';t.textContent=j.text}
-b.onclick=async()=>{if(mr&&mr.state=='recording'){mr.stop();b.textContent='record';b.style.background='';return}
- await rec(async()=>{await fetch('/save?id='+id,{method:'POST',body:new Blob(chunks)});lastId=id;await next()});
- b.textContent='stop';b.style.background='#f66'};
-r.onclick=async()=>{if(lastId==null)return;await fetch('/retake?id='+lastId,{method:'POST'});await next()};
-pl.onclick=()=>{if(lastId!=null)new Audio('/wav?id='+lastId).play()};
-</script>"""
+PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "recorder.html"), encoding="utf8").read()
 
 MIC = "{echoCancellation:false,noiseSuppression:false,autoGainControl:false}" if TTS else "true"
 REC = "{audioBitsPerSecond:128000}" if TTS else "{}"
@@ -67,7 +37,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Content-Length", len(b)); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         p = urlparse(self.path).path
-        if p == "/": return self.send(PAGE.replace("MIC", MIC).replace("REC", REC), "text/html; charset=utf-8")
+        if p == "/": return self.send(PAGE.replace("__MIC__", MIC).replace("__REC__", REC), "text/html; charset=utf-8")
         if p == "/next":
             todo = [i for i in range(min(N, len(prompts))) if i not in man]
             if not todo: return self.send(json.dumps({"done": True}))
