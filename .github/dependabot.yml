@@ -4,7 +4,7 @@ updates:
     directories: ["/stt", "/tts", "/tests"]
     schedule:
       interval: daily
-      time: "02:00"
+      time: "03:00"
       timezone: Europe/Vienna
     groups:
       python:
