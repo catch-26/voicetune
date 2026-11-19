@@ -1,4 +1,4 @@
-import http.server, json, os, shutil, ssl, subprocess, sys, socket
+import hmac, http.cookies, http.server, json, os, secrets, shutil, ssl, subprocess, sys, socket
 from urllib.parse import urlparse, parse_qs
 PORT = int(os.environ["PORT"]); N = int(os.environ["N_PROMPTS"])
 TTS = "tts" in os.environ.get("RUN", "")
@@ -34,6 +34,7 @@ def write_manifest():
 
 TOTAL = min(N, len(prompts))
 MAX_UPLOAD = 64 << 20
+KEY = os.environ.get("RECORDER_KEY") or "".join(secrets.choice("abcdefghjkmnpqrstuvwxyz23456789") for _ in range(8))
 
 class H(http.server.BaseHTTPRequestHandler):
     def fail(self, code):
@@ -42,12 +43,20 @@ class H(http.server.BaseHTTPRequestHandler):
         try: i = int(parse_qs(urlparse(self.path).query)["id"][0])
         except (KeyError, ValueError): return None
         return i if 0 <= i < TOTAL else None
-    def send(self, body, ctype="application/json"):
+    def authorized(self):
+        k = parse_qs(urlparse(self.path).query).get("k", [""])[0]
+        c = http.cookies.SimpleCookie(self.headers.get("Cookie", "")).get("k")
+        return any(hmac.compare_digest(v.encode(), KEY.encode()) for v in (k, c.value if c else "") if v)
+    def send(self, body, ctype="application/json", code=200, cookie=False):
         b = body.encode() if isinstance(body, str) else body
-        self.send_response(200); self.send_header("Content-Type", ctype); self.send_header("Content-Length", len(b)); self.end_headers(); self.wfile.write(b)
+        self.send_response(code); self.send_header("Content-Type", ctype); self.send_header("Content-Length", len(b))
+        if cookie: self.send_header("Set-Cookie", f"k={KEY}; Path=/; Secure; HttpOnly; SameSite=Strict")
+        self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         p = urlparse(self.path).path
-        if p == "/": return self.send(PAGE.replace("__MIC__", MIC).replace("__REC__", REC), "text/html; charset=utf-8")
+        if not self.authorized():
+            return self.send("access code missing or wrong: open the full URL printed in the terminal", "text/plain; charset=utf-8", 403)
+        if p == "/": return self.send(PAGE.replace("__MIC__", MIC).replace("__REC__", REC), "text/html; charset=utf-8", cookie=True)
         if p == "/next":
             todo = [i for i in range(TOTAL) if i not in man]
             if not todo: return self.send(json.dumps({"done": True}))
@@ -58,6 +67,7 @@ class H(http.server.BaseHTTPRequestHandler):
             return self.send(open(f"data/wav/{i:05d}.wav", "rb").read(), "audio/wav")
         self.fail(404)
     def do_POST(self):
+        if not self.authorized(): return self.fail(403)
         u = urlparse(self.path); i = self.rid()
         if i is None or u.path not in ("/save", "/retake"): return self.fail(400)
         if u.path == "/retake":
@@ -77,5 +87,5 @@ srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), H)
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain("cert.pem", "key.pem")
 srv.socket = ctx.wrap_socket(srv.socket, server_side=True)
 s_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s_.connect(("8.8.8.8", 80)); ip = s_.getsockname()[0]
-print(f"open https://{ip}:{PORT}/ on the phone (accept the self-signed cert warning)")
+print(f"open https://{ip}:{PORT}/?k={KEY} on the phone (accept the self-signed cert warning)")
 srv.serve_forever()
