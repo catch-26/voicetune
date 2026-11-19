@@ -1,5 +1,5 @@
 jiwer==4.0.0
-numpy==2.5.4
+numpy==2.5.5
 packaging==26.3
 pytest==9.2.0
 ruff==0.17.5
