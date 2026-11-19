@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: publish when VERSION has no tag and a CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(cat VERSION)
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$v")" ]; then echo "v$v already released"; exit 0; fi
+          awk -v h="# $v (" 'index($0, h) == 1 {on = 1; next} on && /^# / {exit} on' CHANGELOG.md > notes.md
+          if ! grep -q . notes.md; then echo "CHANGELOG.md has no section '# $v (<date>)'"; exit 1; fi
+          python3 tools/version.py --check
+          python3 tools/version.py --archive "dist/voicetune-$v.zip"
+          title=$(grep -m1 "^# $v (" CHANGELOG.md | sed 's/^# //')
+          gh release create "v$v" "dist/voicetune-$v.zip" --target "$GITHUB_SHA" --title "$title" --notes-file notes.md

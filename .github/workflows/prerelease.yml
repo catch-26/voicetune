@@ -1,0 +1,31 @@
+name: Pre-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to publish
+        default: prerelease
+
+permissions:
+  contents: write
+
+concurrency: prerelease
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: publish v<id>-pre
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(python3 tools/version.py)
+          if [ -n "$(git ls-remote --tags origin "refs/tags/v$v-pre")" ]; then echo "v$v-pre already published"; exit 0; fi
+          python3 tools/version.py --archive "dist/voicetune-$v.zip"
+          awk '/^# Unreleased/ {on = 1; next} on && /^# / {exit} on' CHANGELOG.md > notes.md
+          grep -q . notes.md || echo "Pre-release of $(git rev-parse --short HEAD)." > notes.md
+          gh release create "v$v-pre" "dist/voicetune-$v.zip" --prerelease --latest=false --target "$(git rev-parse HEAD)" --title "$v pre-release" --notes-file notes.md
