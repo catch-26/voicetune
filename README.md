@@ -41,7 +41,7 @@ Everything else is installed inside the project folder or the download folder. T
 | uv | system `uv` | release binary in `.tools/bin` |
 | Python packages | | one virtual environment per engine (`.venv-parakeet`, `.venv-whisper`, `.venv-tts`) |
 | Hugging Face CLI | system `hf` | the `hf` in the virtual environment |
-| ffmpeg | system `ffmpeg` | static `imageio-ffmpeg` build |
+| ffmpeg | system `ffmpeg` | `static-ffmpeg` uv tool |
 | openssl | system `openssl` | certificate made with Python `cryptography` |
 | git | system `git` | GitHub tarball |
 | cmake, make | system tools | `cmake` and `ninja` as uv tools |

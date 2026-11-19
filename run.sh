@@ -77,7 +77,11 @@ if [ "$TORCH_BACKEND" != cpu ] && [ "${DEVICE:-}" != cpu ] && ! grep -q '^GPU=' 
 fi
 [ -z "${GPU:-}" ] || export HIP_VISIBLE_DEVICES="$GPU" CUDA_VISIBLE_DEVICES="$GPU"
 PY=${PY:-$PYD}
-have ffmpeg || { echo "ffmpeg not found, using the imageio-ffmpeg build"; uv pip install imageio-ffmpeg; ln -sf "$($PYD -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" "$T/bin/ffmpeg"; }
+if ! have ffmpeg; then
+  echo "ffmpeg not found, installing static-ffmpeg as a uv tool"; uv tool install static-ffmpeg
+  F=$(static_ffmpeg_paths | sed -n 's/^FFMPEG=//p'); [ -x "$F" ] || { echo "static-ffmpeg download failed: install ffmpeg with your package manager and rerun"; exit 1; }
+  ln -sf "$F" "$T/bin/ffmpeg"
+fi
 have openssl || $PYD -c "import cryptography" 2>/dev/null || uv pip install cryptography
 $PYD -c "import torch; print('torch', torch.__version__, 'hip', torch.version.hip); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none, using CPU (slow but works)')"
 if [ "$TORCH_BACKEND" != cpu ] && ! $PYD -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
