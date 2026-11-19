@@ -1,0 +1,12 @@
+config.env
+*.pem
+.venv*/
+.tools/
+data/
+models/
+downloads/
+out/
+dist/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

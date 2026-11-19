@@ -69,7 +69,7 @@ if [[ $RUN == *tts* ]]; then
   $PYT -c "from misaki import de; assert de.DEG2P()('Guten Tag')[0]" || { echo "German phonemizer failed: install espeak-ng with your package manager and rerun"; exit 1; }
 fi
 if [[ $RUN == *stt* ]]; then venv ".venv-$ENGINE" "$([ "$ENGINE" = parakeet ] && echo 3.12 || echo 3.13)" "requirements-$ENGINE.txt"; PY=.venv-$ENGINE/bin/python; PYD=$PY; else PYD=$PYT; fi
-export VIRTUAL_ENV="$PWD/$(dirname "$(dirname "$PYD")")"
+VIRTUAL_ENV="$PWD/$(dirname "$(dirname "$PYD")")"; export VIRTUAL_ENV
 if [ "$TORCH_BACKEND" != cpu ] && [ "${DEVICE:-}" != cpu ] && ! grep -q '^GPU=' config.env; then
   l=$($PYD -c "import torch; [print(i, torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]"); GPU=
   if [ "$(printf '%s\n' "$l" | grep -c .)" -gt 1 ]; then echo "$l"; GPU=$(ask "several GPUs found: index to train on (saved as GPU= in config.env)" 0); fi

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 build() {
   local src=$1 pre=$2 extra=$3 b d f arch; shift 3
   for b in vulkan hip cpu; do

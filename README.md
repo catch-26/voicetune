@@ -1,4 +1,4 @@
-# stt-tts-ft: personal speech-to-text finetune -> phone, and a German Kokoro voice of the same recordings
+# voicetune: personal speech-to-text finetune -> phone, and a German Kokoro voice of the same recordings
 
 run: `./run.sh [stt|tts|both]` (the only entry point; it installs, then runs). without an argument it asks, default = last choice
 (RUN_LAST in config.env). both workflows share config.env, the recorder, data/, the download folder and the out folder;
@@ -72,8 +72,11 @@ state: data/manifest.jsonl. parakeet: delete models/parakeet to retrain. whisper
 the out file to re-export, .venv-<engine> to reinstall python deps, .tools to redo the tool fallbacks,
 <download folder>/third_party/<repo>/build-* to rebuild the tools.
 
-versioning: every release gets a 5-character id [a-z0-9] derived from a hash of the release files. it is stored in
-VERSION and appended to the archive name: stt-tts-ft-<id>.zip. compute it from the folder root after all changes, with
-VERSION itself and local state (.venv*, .tools, data, models, downloads, out, config.env, *.pem) excluded:
-`find . -type f ! -name VERSION ! -path './.venv*' ! -path './.tools/*' ! -path './data/*' ! -path './models/*' ! -path './downloads/*' ! -path './out/*' ! -name config.env ! -name '*.pem' | sort | xargs sha256sum | sha256sum | python3 -c "import sys; n=int(sys.stdin.read()[:64],16); a='0123456789abcdefghijklmnopqrstuvwxyz'; print(''.join(a[n//36**i%36] for i in range(5)))" > VERSION`
-same files give the same id; any change gives a new one.
+recorder page: web/recorder.html, served by stage1_record.py (__MIC__ and __REC__ are filled in per workflow).
+
+versioning: every release gets a 5-character id [a-z0-9] derived from a hash of the shipped files. it is stored in
+VERSION and appended to the archive name: voicetune-<id>.zip. `python3 tools/version.py` prints the id, `--write` stores
+it in VERSION. the hash covers every tracked file except VERSION and the paths marked export-ignore in .gitattributes
+(CI, tests, tools, CHANGELOG). same files give the same id; any change gives a new one.
+
+development: tests in tests/ (pytest, CPU only), lint with shellcheck and ruff; CI runs both on every pull request.
