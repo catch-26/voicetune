@@ -5,7 +5,7 @@ ask() { local v; read -r -p "$1 [$2]: " v; echo "${v:-$2}"; }
 have() { command -v "$1" >/dev/null; }
 kv() { if [[ $2 =~ ^[[:alnum:]_.,/:+@-]*$ ]]; then printf '%s=%s\n' "$1" "$2"; else printf '%s=%q\n' "$1" "$2"; fi; }
 need() { declare -p "$1" >/dev/null 2>&1 && return; local v=$2; [ -z "${3:-}" ] || v=$(ask "$3" "$2"); kv "$1" "$v" >> config.env; export "$1=$v"; }
-KSHA=a12d0410e89841e6f3c09958ae5c072f90ae1d49 SSHA=b1956da84bf4a6ccc88f2440078024f1c4bfec7d OSHA=b96fef95e6a746495f92443fac7c688f90fc57fc
+UVV=0.13.9 KSHA=a12d0410e89841e6f3c09958ae5c072f90ae1d49 SSHA=b1956da84bf4a6ccc88f2440078024f1c4bfec7d OSHA=b96fef95e6a746495f92443fac7c688f90fc57fc
 RUN=${1:-}
 OS=$(uname -s)
 if [ ! -f config.env ]; then
@@ -53,7 +53,17 @@ fi
 T="$PWD/.tools"
 export PYTHONPATH="$PWD/lib" HF_HOME="$DOWNLOAD_DIR/hf" PATH="$T/bin:$PATH" UV_TOOL_DIR="$T/uv" UV_TOOL_BIN_DIR="$T/bin"
 mkdir -p data/wav models "$OUT_DIR" "$DOWNLOAD_DIR" "$T/bin"
-have uv || { echo "uv not found, installing it into $T/bin"; A=$(uname -m); [ "$A" = arm64 ] && A=aarch64; [ "$OS" = Darwin ] && A=$A-apple-darwin || A=$A-unknown-linux-gnu; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/latest/download/uv-$A.tar.gz" "$T/bin"; }
+have uv || {
+  A=$(uname -m); [ "$A" = arm64 ] && A=aarch64; [ "$OS" = Darwin ] && A=$A-apple-darwin || A=$A-unknown-linux-gnu
+  case $A in
+    x86_64-unknown-linux-gnu) s=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5 ;;
+    aarch64-unknown-linux-gnu) s=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d ;;
+    x86_64-apple-darwin) s=617a3211261b0fc739562f0071aa34e9739797c510208ede8e2977c30903d041 ;;
+    aarch64-apple-darwin) s=5aeca67f2283f75235de40d0bd9c0a5bbc5fce23b6d48b3bf9fa1b2db08382ca ;;
+    *) echo "uv not found and no pinned build for $A: install uv and rerun"; exit 1 ;;
+  esac
+  echo "uv not found, installing uv $UVV into $T/bin"; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/download/$UVV/uv-$A.tar.gz" "$T/bin" "$s"
+}
 venv() { export VIRTUAL_ENV="$PWD/$1"; [ -d "$1" ] || uv venv --python "$2" "$1"; if [ ! -f "$1/.installed" ]; then uv pip install --torch-backend "$TORCH_BACKEND" -r "$3"; touch "$1/.installed"; fi; }
 if [[ $RUN == *tts* ]]; then
   KIKIRI="$DOWNLOAD_DIR/third_party/kikiri-tts-${KSHA:0:7}"; export KIKIRI
@@ -93,7 +103,7 @@ if [ "$TORCH_BACKEND" != cpu ] && ! $PYD -c "import torch, sys; sys.exit(0 if to
   echo "  for RX 7700/7800/7600 export HSA_OVERRIDE_GFX_VERSION=11.0.0 and rerun."
   read -r -p "continue on CPU anyway? [y/N]: " c; [ "$c" = y ] || exit 1
 fi
-hf_get() { if have hf; then hf download "$@" >/dev/null; else "$VIRTUAL_ENV/bin/hf" download "$@" >/dev/null; fi; }
+hf_get() { local r h=hf; r=$(awk -v k="$1" '$1 == k {print $2}' lib/hf_revisions.txt); have hf || h="$VIRTUAL_ENV/bin/hf"; "$h" download "$1" ${r:+--revision "$r"} >/dev/null; }
 if [[ $RUN == *stt* ]]; then if [ "$ENGINE" = parakeet ]; then hf_get "$PARAKEET_MODEL"; else hf_get "openai/whisper-$WHISPER_MODEL"; fi; fi
 [ -f data/prompts.txt ] || $PYD record/stage0_data.py
 TARGET=$N_PROMPTS

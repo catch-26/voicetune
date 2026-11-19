@@ -1,6 +1,8 @@
 import csv, json, os, random, re, subprocess
 import pyarrow.parquet as pq
 from huggingface_hub import list_repo_files, hf_hub_download
+from huggingface_hub.errors import RevisionNotFoundError
+from hf_pins import rev as pinned
 from common import LANGS, FLEURS_CFGS, REPLAY_CFGS, lang_of
 n = int(os.environ["N_PROMPTS"]); dl = os.environ["DOWNLOAD_DIR"]; replay_n = int(os.environ["REPLAY_N"])
 
@@ -11,8 +13,10 @@ def to_wav(b, wav):
 
 def fetch(cfg, out, limit=None):
     if os.path.exists(out): return
-    for rev in ["refs/convert/parquet", "main"]:
-        allf = list_repo_files("google/fleurs", repo_type="dataset", revision=rev)
+    files, allf = [], []
+    for rev in [pinned("datasets/google/fleurs@refs/convert/parquet"), pinned("datasets/google/fleurs@main")]:
+        try: allf = list_repo_files("google/fleurs", repo_type="dataset", revision=rev)
+        except RevisionNotFoundError: continue
         files = sorted(f for f in allf if f.endswith(".parquet") and f"{cfg}/" in f and "train" in f)
         if files: break
     if not files: raise SystemExit(f"no train parquet for {cfg}. files mentioning it: {[f for f in allf if cfg in f][:20]}")

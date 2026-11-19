@@ -4,6 +4,8 @@ Each release has a section headed `# <id> (<YYYY-MM-DD>)`, newest at the top, wh
 
 # Unreleased
 
+- The default Hugging Face models and the FLEURS dataset are downloaded at fixed revisions, listed in `lib/hf_revisions.txt`.
+- Without a system uv, `run.sh` installs uv 0.13.9 and checks its sha256 (Linux and macOS, x86_64 and arm64), instead of the latest release.
 - TTS training now runs on the CPU when no GPU is available, or with `DEVICE=cpu`. `tts/tts_train.py` replaces the hard-coded `cuda` device in the pinned StyleTTS2 training scripts before training starts.
 - Parakeet training uses no DataLoader worker processes on systems other than Linux, where workers are started with `spawn`.
 - `run.sh` no longer uses `sed -i` or `ldconfig` outside Linux, downloads the matching uv build on macOS, and offers `cpu` as the default PyTorch build on macOS.

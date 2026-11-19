@@ -1,8 +1,9 @@
 import json, os, sys, torch, jiwer
 from collections import defaultdict
 from transformers import WhisperProcessor, WhisperForConditionalGeneration, Seq2SeqTrainer, Seq2SeqTrainingArguments
+from hf_pins import rev
 from common import DEV, BASE, lang_kw, split, fleurs, replay, audio, norm
-proc = WhisperProcessor.from_pretrained(BASE)
+proc = WhisperProcessor.from_pretrained(BASE, revision=rev(BASE))
 train, test = split()
 replay_train, replay_eval = replay()
 fleurs_train, fleurs_eval = fleurs()
@@ -37,7 +38,7 @@ def wer_by_lang(model, rs):
         hyp[r["lang"]].append(" ".join(norm(proc.batch_decode(ids, skip_special_tokens=True)[0]))); ref[r["lang"]].append(" ".join(norm(r["text"])))
     return {k: jiwer.wer(ref[k], hyp[k]) for k in ref}
 
-model = WhisperForConditionalGeneration.from_pretrained(BASE).to(DEV)
+model = WhisperForConditionalGeneration.from_pretrained(BASE, revision=rev(BASE)).to(DEV)
 model.config.forced_decoder_ids = None; model.generation_config.forced_decoder_ids = None
 evaluate = lambda: {"own": wer_by_lang(model, test), "other_speakers": wer_by_lang(model, fleurs_eval), "other_langs": wer_by_lang(model, replay_eval)}
 before = evaluate(); print("baseline", before)

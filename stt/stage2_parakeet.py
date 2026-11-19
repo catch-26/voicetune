@@ -2,6 +2,8 @@ import json, math, os, sys, torch, jiwer, soundfile as sf
 import lightning.pytorch as pl
 from collections import defaultdict
 from nemo.collections.asr.models import ASRModel
+from huggingface_hub import hf_hub_download
+from hf_pins import rev
 from common import DEV, BASE, split, fleurs, replay, norm
 from tdt_loss import TDTLossTorch
 BS = 8
@@ -27,7 +29,8 @@ def wer_by_lang(model, rs):
         hyp[r["lang"]].append(" ".join(norm(getattr(h, "text", h)))); ref[r["lang"]].append(" ".join(norm(r["text"])))
     return {k: jiwer.wer(ref[k], hyp[k]) for k in ref}
 
-model = (ASRModel.restore_from(BASE, map_location="cpu") if BASE.endswith(".nemo") else ASRModel.from_pretrained(BASE, map_location="cpu")).to(DEV)
+src = BASE if BASE.endswith(".nemo") else hf_hub_download(BASE, BASE.rsplit("/", 1)[-1] + ".nemo", revision=rev(BASE))
+model = ASRModel.restore_from(src, map_location="cpu").to(DEV)
 nemo_loss = getattr(getattr(model, "loss", None), "_loss", None)
 if type(nemo_loss).__name__ == "TDTLossNumba" and not (DEV == "cuda" and torch.version.cuda):
     model.loss._loss = TDTLossTorch(nemo_loss.blank, nemo_loss.durations, nemo_loss.sigma)
