@@ -258,7 +258,7 @@ To switch the STT model or engine, edit `config.env`, then delete `models/` and 
 | Export | the output file |
 | Python packages | `.venv-<engine>` |
 | Tool fallbacks | `.tools` |
-| whisper.cpp or transcribe.cpp build | `<download folder>/third_party/<repo>/build-*` |
+| whisper.cpp or transcribe.cpp build | `<download folder>/third_party/<repo>-<commit>/build-*` |
 
 ## Troubleshooting
 
