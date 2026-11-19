@@ -1,0 +1,7 @@
+nemo_toolkit[asr]
+gguf
+lightning
+pyarrow
+soundfile
+jiwer
+huggingface_hub

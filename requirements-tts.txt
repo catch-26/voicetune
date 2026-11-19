@@ -1,0 +1,23 @@
+torch
+torchaudio
+accelerate
+transformers<5
+huggingface_hub
+librosa
+soundfile
+pyyaml
+tensorboard
+munch
+einops
+einops-exts
+matplotlib
+pandas
+scipy
+click
+tqdm
+loguru
+numpy
+pyarrow
+jiwer
+misaki[en,de] @ https://github.com/semidark/misaki/archive/9cda9268309160120fffee216280a9ca83ac4644.tar.gz
+monotonic_align @ https://github.com/resemble-ai/monotonic_align/archive/c6e5e6cb19882164027eb6e35118e841eed9298e.tar.gz

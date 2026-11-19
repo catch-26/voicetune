@@ -1,0 +1,8 @@
+torch
+transformers>=5.3
+accelerate
+huggingface_hub
+pyarrow
+soundfile
+jiwer
+numpy
