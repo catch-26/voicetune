@@ -4,6 +4,9 @@ Each release has a section headed `# <id> (<YYYY-MM-DD>)`, newest at the top, wh
 
 # Unreleased
 
+- TTS training now runs on the CPU when no GPU is available, or with `DEVICE=cpu`. `tts/tts_train.py` replaces the hard-coded `cuda` device in the pinned StyleTTS2 training scripts before training starts.
+- Parakeet training uses no DataLoader worker processes on systems other than Linux, where workers are started with `spawn`.
+- `run.sh` no longer uses `sed -i` or `ldconfig` outside Linux, downloads the matching uv build on macOS, and offers `cpu` as the default PyTorch build on macOS.
 - The export step now downloads whisper.cpp, transcribe.cpp and openai/whisper at fixed commits (ca19af2, adfc502, 8609812) into `third_party/<repo>-<commit>/` instead of the latest commit.
 - Without a system ffmpeg, `run.sh` now installs the `static-ffmpeg` uv tool instead of the `imageio-ffmpeg` package.
 - The release archive is now named `voicetune-<id>.zip`.
