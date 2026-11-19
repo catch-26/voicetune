@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install -r tests/requirements.txt
+      - name: bash syntax
+        run: for f in *.sh; do bash -n "$f"; done
+      - name: shellcheck
+        run: shellcheck -S warning -f gcc *.sh
+      - name: ruff
+        run: ruff check --output-format github .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -r tests/requirements.txt
+      - run: python -m pytest -v tests
+
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: release id matches VERSION when a release section is pending
+        run: |
+          v=$(cat VERSION)
+          if grep -q "^# $v (" CHANGELOG.md && [ -z "$(git ls-remote --tags origin "refs/tags/v$v")" ]; then
+            python3 tools/version.py --check
+          else
+            echo "no pending release for $v"
+          fi
