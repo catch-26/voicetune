@@ -3,6 +3,7 @@ from huggingface_hub import hf_hub_download, list_repo_files
 from hf_pins import rev
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from common import DEV, norm
+from device_patch import patch
 K = os.environ["KIKIRI"]; ST = f"{K}/StyleTTS2"; M = os.path.abspath("models/tts"); LOG = f"{M}/logs"
 VOICE = os.environ["TTS_VOICE"]; OUT = os.environ["OUT_DIR"]; D = os.path.abspath("data/tts")
 os.makedirs(LOG, exist_ok=True)
@@ -35,9 +36,11 @@ cfg["data_params"].update(train_data=f"{D}/train_list.txt", val_data=f"{D}/val_l
                           OOD_data=f"{K}/training/OOD_texts.txt", num_workers=min(8, os.cpu_count() or 1))
 yaml.safe_dump(cfg, open(f"{M}/config.yml", "w"), allow_unicode=True, sort_keys=False)
 
+patch(ST)
+if DEV == "cpu": os.environ.update(CUDA_VISIBLE_DEVICES="", HIP_VISIBLE_DEVICES="")
 for stage, script in [("stage1", "train_first.py"), ("stage2", "train_second.py")]:
     if os.path.exists(f"{M}/{stage}.done"): continue
-    print(f"tts {stage}: {script} (first ROCm run compiles kernels for 10-30 min before step 1)")
+    print(f"tts {stage}: {script} on {DEV} (first ROCm run compiles kernels for 10-30 min before step 1)")
     subprocess.run([sys.executable, script, "--config_path", f"{M}/config.yml"], cwd=ST, check=True)
     open(f"{M}/{stage}.done", "w").close()
 

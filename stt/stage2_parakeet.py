@@ -43,7 +43,7 @@ trainer = pl.Trainer(accelerator="gpu" if gpu else "cpu", devices=1, max_epochs=
     gradient_clip_val=1.0, log_every_n_steps=10)
 model.set_trainer(trainer)
 model.setup_training_data({"manifest_filepath": manifest(train, "models/parakeet/train.json"), "sample_rate": 16000,
-    "batch_size": BS, "shuffle": True, "num_workers": 2, "pin_memory": gpu, "use_lhotse": False, "max_duration": 30.0, "trim_silence": False})
+    "batch_size": BS, "shuffle": True, "num_workers": 2 if sys.platform == "linux" else 0, "pin_memory": gpu, "use_lhotse": False, "max_duration": 30.0, "trim_silence": False})
 steps = math.ceil(len(train) / BS) * int(os.environ["FT_EPOCHS"])
 model.setup_optimization({"name": "adamw", "lr": 2e-5, "weight_decay": 1e-3,
     "sched": {"name": "CosineAnnealing", "warmup_steps": min(50, steps // 10), "min_lr": 1e-6, "max_steps": steps}})

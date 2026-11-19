@@ -38,7 +38,7 @@ Everything else is installed inside the project folder or the download folder. T
 
 | Tool | Used when present | Fallback |
 |---|---|---|
-| uv | system `uv` | uv 0.13.9 release binary in `.tools/bin`, checked against a pinned sha256 (x86_64 and aarch64) |
+| uv | system `uv` | uv 0.13.9 release binary in `.tools/bin`, checked against a pinned sha256 (Linux and macOS, x86_64 and arm64) |
 | Python packages | | one virtual environment per engine (`.venv-parakeet`, `.venv-whisper`, `.venv-tts`) |
 | Hugging Face CLI | system `hf` | the `hf` in the virtual environment |
 | ffmpeg | system `ffmpeg` | `static-ffmpeg` uv tool |

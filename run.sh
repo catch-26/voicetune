@@ -7,9 +7,10 @@ kv() { if [[ $2 =~ ^[[:alnum:]_.,/:+@-]*$ ]]; then printf '%s=%s\n' "$1" "$2"; e
 need() { declare -p "$1" >/dev/null 2>&1 && return; local v=$2; [ -z "${3:-}" ] || v=$(ask "$3" "$2"); kv "$1" "$v" >> config.env; export "$1=$v"; }
 UVV=0.13.9 KSHA=a12d0410e89841e6f3c09958ae5c072f90ae1d49 SSHA=b1956da84bf4a6ccc88f2440078024f1c4bfec7d OSHA=b96fef95e6a746495f92443fac7c688f90fc57fc
 RUN=${1:-}
+OS=$(uname -s)
 if [ ! -f config.env ]; then
   echo "first run: answer or press enter for the default"
-  TORCH_BACKEND=$(ask "torch build: rocm7.2 (AMD), cpu, cu128 (NVIDIA), or auto" rocm7.2)
+  TORCH_BACKEND=$(ask "torch build: rocm7.2 (AMD), cpu, cu128 (NVIDIA), or auto" "$([ "$OS" = Darwin ] && echo cpu || echo rocm7.2)")
   ENGINE=$(ask "engine: parakeet (-> Offline Voice Input, GGUF) | whisper (-> FUTO Keyboard, GGML)" parakeet)
   WHISPER_MODEL=; PARAKEET_MODEL=
   if [ "$ENGINE" = parakeet ]; then
@@ -40,7 +41,7 @@ fi
 set -a; source config.env; ENGINE=${ENGINE:-whisper}; WHISPER_MODEL=${WHISPER_MODEL:-base}; set +a
 [ -n "$RUN" ] || RUN=$(ask "run which workflows: stt | tts | both" "${RUN_LAST:-both}")
 case $RUN in stt|tts|both) ;; *) echo "unknown workflow '$RUN': use stt, tts or both"; exit 1 ;; esac
-grep -q '^RUN_LAST=' config.env && sed -i "s/^RUN_LAST=.*/RUN_LAST=$RUN/" config.env || echo "RUN_LAST=$RUN" >> config.env
+{ grep -v '^RUN_LAST=' config.env || true; echo "RUN_LAST=$RUN"; } > config.env.tmp && mv config.env.tmp config.env
 [ "$RUN" = both ] && RUN=stt,tts; export RUN
 if [[ $RUN == *tts* ]]; then
   [[ ",$LANGS," == *,de,* ]] || { echo "the TTS workflow is German: add de to LANGS in config.env (and de_de to FLEURS_CFGS)"; exit 1; }
@@ -53,8 +54,15 @@ T="$PWD/.tools"
 export PYTHONPATH="$PWD/lib" HF_HOME="$DOWNLOAD_DIR/hf" PATH="$T/bin:$PATH" UV_TOOL_DIR="$T/uv" UV_TOOL_BIN_DIR="$T/bin"
 mkdir -p data/wav models "$OUT_DIR" "$DOWNLOAD_DIR" "$T/bin"
 have uv || {
-  case $(uname -m) in x86_64) s=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5 ;; aarch64) s=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d ;; *) echo "uv not found and no pinned build for $(uname -m): install uv and rerun"; exit 1 ;; esac
-  echo "uv not found, installing uv $UVV into $T/bin"; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/download/$UVV/uv-$(uname -m)-unknown-linux-gnu.tar.gz" "$T/bin" "$s"
+  A=$(uname -m); [ "$A" = arm64 ] && A=aarch64; [ "$OS" = Darwin ] && A=$A-apple-darwin || A=$A-unknown-linux-gnu
+  case $A in
+    x86_64-unknown-linux-gnu) s=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5 ;;
+    aarch64-unknown-linux-gnu) s=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d ;;
+    x86_64-apple-darwin) s=617a3211261b0fc739562f0071aa34e9739797c510208ede8e2977c30903d041 ;;
+    aarch64-apple-darwin) s=5aeca67f2283f75235de40d0bd9c0a5bbc5fce23b6d48b3bf9fa1b2db08382ca ;;
+    *) echo "uv not found and no pinned build for $A: install uv and rerun"; exit 1 ;;
+  esac
+  echo "uv not found, installing uv $UVV into $T/bin"; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/download/$UVV/uv-$A.tar.gz" "$T/bin" "$s"
 }
 venv() { export VIRTUAL_ENV="$PWD/$1"; [ -d "$1" ] || uv venv --python "$2" "$1"; if [ ! -f "$1/.installed" ]; then uv pip install --torch-backend "$TORCH_BACKEND" -r "$3"; touch "$1/.installed"; fi; }
 if [[ $RUN == *tts* ]]; then
@@ -67,7 +75,7 @@ if [[ $RUN == *tts* ]]; then
   venv .venv-tts 3.12 tts/requirements.txt; PYT=.venv-tts/bin/python
   export PYTHONPATH="$PYTHONPATH:$KIKIRI/kokoro:$KIKIRI/StyleTTS2"
   EL=$($PYT -c 'import espeakng_loader, os; print(os.path.dirname(espeakng_loader.__file__))')
-  if have espeak-ng && [ ! -L "$EL/libespeak-ng.so" ]; then
+  if [ "$OS" = Linux ] && have espeak-ng && [ ! -L "$EL/libespeak-ng.so" ]; then
     LDC=$(command -v ldconfig || echo /sbin/ldconfig); L=$($LDC -p | grep -o '/[^ ]*libespeak-ng\.so\.1$' | head -1); ED=$(espeak-ng --version | sed -n 's/.*Data at: *//p')
     if [ -n "$L" ] && [ -d "$ED" ]; then echo "using the system espeak-ng ($L)"; rm -rf "$EL/espeak-ng-data" "$EL/libespeak-ng.so"; ln -s "$L" "$EL/libespeak-ng.so"; ln -s "$ED" "$EL/espeak-ng-data"; fi
   fi
@@ -91,7 +99,7 @@ have openssl || $PYD -c "import cryptography" 2>/dev/null || uv pip install cryp
 $PYD -c "import torch; print('torch', torch.__version__, 'hip', torch.version.hip); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none, using CPU (slow but works)')"
 if [ "$TORCH_BACKEND" != cpu ] && ! $PYD -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
   echo "GPU not visible to torch. checks: torch version above must end in +$TORCH_BACKEND (else: rm -rf $VIRTUAL_ENV and rerun);"
-  echo "  ls -l /dev/kfd /dev/dri (you need read/write: add yourself to the video and render groups, re-login);"
+  echo "  ls -l /dev/kfd /dev/dri (you need read/write: add yourself to the video and render groups, re-login; under WSL2 the device is /dev/dxg);"
   echo "  for RX 7700/7800/7600 export HSA_OVERRIDE_GFX_VERSION=11.0.0 and rerun."
   read -r -p "continue on CPU anyway? [y/N]: " c; [ "$c" = y ] || exit 1
 fi
