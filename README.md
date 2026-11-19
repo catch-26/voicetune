@@ -24,7 +24,6 @@ Training uses an AMD GPU (ROCm) or an NVIDIA GPU (CUDA) when one is available, a
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Versioning](#versioning)
-- [Planned](#planned)
 - [License](#license)
 
 ## Requirements
@@ -288,10 +287,6 @@ Each release has a 5-character id (`[a-z0-9]`) derived from a hash of the shippe
 - `python3 tools/version.py --write` stores it in `VERSION`.
 
 The hash covers every tracked file except `VERSION` and the paths marked `export-ignore` in `.gitattributes` (CI, tests, tools, CHANGELOG). The same files give the same id; any change gives a new one. Changes are listed in `CHANGELOG.md`.
-
-## Planned
-
-A browser-only version that downloads the models and trains them in the browser with WebGPU and WebAssembly, so that no local install is needed.
 
 ## License
 
