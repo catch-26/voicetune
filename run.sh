@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ask() { local v; read -r -p "$1 [$2]: " v; echo "${v:-$2}"; }
 have() { command -v "$1" >/dev/null; }
-need() { declare -p "$1" >/dev/null 2>&1 && return; local v=$2; [ -z "${3:-}" ] || v=$(ask "$3" "$2"); printf '%s=%s\n' "$1" "$v" >> config.env; export "$1=$v"; }
+kv() { if [[ $2 =~ ^[[:alnum:]_.,/:+@-]*$ ]]; then printf '%s=%s\n' "$1" "$2"; else printf '%s=%q\n' "$1" "$2"; fi; }
+need() { declare -p "$1" >/dev/null 2>&1 && return; local v=$2; [ -z "${3:-}" ] || v=$(ask "$3" "$2"); kv "$1" "$v" >> config.env; export "$1=$v"; }
 KSHA=a12d0410e89841e6f3c09958ae5c072f90ae1d49 SSHA=b1956da84bf4a6ccc88f2440078024f1c4bfec7d OSHA=b96fef95e6a746495f92443fac7c688f90fc57fc
 RUN=${1:-}
 if [ ! -f config.env ]; then
@@ -31,8 +32,9 @@ if [ ! -f config.env ]; then
   ACFT_PUBLIC=y; if [ "$ENGINE" = whisper ]; then ACFT_PUBLIC=$(ask "use FLEURS for the ACFT step (recommended)" y); fi
   DOWNLOAD_DIR=$(ask "download folder" "$PWD/downloads")
   OUT_DIR=$(ask "output folder for the finished model" "$PWD/out")
-  printf 'ENGINE=%s\nPARAKEET_MODEL=%s\nWHISPER_MODEL=%s\nANCHOR_N=200\nANCHOR_EVAL=100\nTORCH_BACKEND=%s\nLANGS=%s\nFLEURS_CFGS=%s\nREPLAY_CFGS=%s\nREPLAY_N=%s\nN_PROMPTS=%s\nMIX_PUBLIC=%s\nACFT_PUBLIC=%s\nDOWNLOAD_DIR=%s\nOUT_DIR=%s\nHOLDOUT=0.15\nPORT=8443\nFT_EPOCHS=3\nACFT_EPOCHS=8\nFORGET_TOL=0.10\n' \
-    "$ENGINE" "$PARAKEET_MODEL" "$WHISPER_MODEL" "$TORCH_BACKEND" "$LANGS" "$FLEURS_CFGS" "$REPLAY_CFGS" "$REPLAY_N" "$N_PROMPTS" "$MIX_PUBLIC" "$ACFT_PUBLIC" "$DOWNLOAD_DIR" "$OUT_DIR" > config.env
+  { kv ENGINE "$ENGINE"; kv PARAKEET_MODEL "$PARAKEET_MODEL"; kv WHISPER_MODEL "$WHISPER_MODEL"; kv ANCHOR_N 200; kv ANCHOR_EVAL 100; kv TORCH_BACKEND "$TORCH_BACKEND"; kv LANGS "$LANGS"
+    kv FLEURS_CFGS "$FLEURS_CFGS"; kv REPLAY_CFGS "$REPLAY_CFGS"; kv REPLAY_N "$REPLAY_N"; kv N_PROMPTS "$N_PROMPTS"; kv MIX_PUBLIC "$MIX_PUBLIC"; kv ACFT_PUBLIC "$ACFT_PUBLIC"; kv DOWNLOAD_DIR "$DOWNLOAD_DIR"; kv OUT_DIR "$OUT_DIR"
+    kv HOLDOUT 0.15; kv PORT 8443; kv FT_EPOCHS 3; kv ACFT_EPOCHS 8; kv FORGET_TOL 0.10; } > config.env
   echo "saved to config.env (edit or delete to redo)"
 fi
 set -a; source config.env; ENGINE=${ENGINE:-whisper}; WHISPER_MODEL=${WHISPER_MODEL:-base}; set +a
@@ -73,7 +75,7 @@ VIRTUAL_ENV="$PWD/$(dirname "$(dirname "$PYD")")"; export VIRTUAL_ENV
 if [ "$TORCH_BACKEND" != cpu ] && [ "${DEVICE:-}" != cpu ] && ! grep -q '^GPU=' config.env; then
   l=$($PYD -c "import torch; [print(i, torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]"); GPU=
   if [ "$(printf '%s\n' "$l" | grep -c .)" -gt 1 ]; then echo "$l"; GPU=$(ask "several GPUs found: index to train on (saved as GPU= in config.env)" 0); fi
-  echo "GPU=$GPU" >> config.env
+  kv GPU "$GPU" >> config.env
 fi
 [ -z "${GPU:-}" ] || export HIP_VISIBLE_DEVICES="$GPU" CUDA_VISIBLE_DEVICES="$GPU"
 PY=${PY:-$PYD}

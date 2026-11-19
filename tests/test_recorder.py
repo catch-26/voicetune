@@ -6,6 +6,7 @@ import ssl
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 import pytest
@@ -78,5 +79,27 @@ def test_save_retake_and_exit(tmp_path):
             pass
         assert p.wait(timeout=20) == 0
         assert len((tmp_path / "data/manifest.jsonl").read_text().splitlines()) == 2
+    finally:
+        p.kill()
+
+
+def status(url, data=None):
+    try:
+        urllib.request.urlopen(urllib.request.Request(url, data=data, method="POST" if data is not None else "GET"), context=CTX, timeout=10)
+        return 200
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def test_rejects_bad_ids_and_paths(tmp_path):
+    p, base = start(tmp_path, "stt")
+    try:
+        assert status(base + "/save?id=2", b"x") == 400
+        assert status(base + "/save?id=-1", b"x") == 400
+        assert status(base + "/retake?id=abc", b"") == 400
+        assert status(base + "/other?id=0", b"x") == 400
+        assert status(base + "/wav?id=0") == 404
+        assert status(base + "/wav?id=99") == 404
+        assert not (tmp_path / "data/manifest.jsonl").exists()
     finally:
         p.kill()
