@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directories: ["/", "/tests"]
+    schedule:
+      interval: daily
+      time: "03:00"
+      timezone: Europe/Vienna
+    groups:
+      python:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Europe/Vienna
+    groups:
+      actions:
+        patterns: ["*"]
