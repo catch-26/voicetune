@@ -83,7 +83,7 @@ Both workflows share `config.env`, the recorder, `data/`, the download folder an
 
 ## Recording
 
-When recording starts, the terminal prints a URL such as `https://<ip>:8443/`.
+When recording starts, the terminal prints a URL such as `https://<ip>:8443/?k=<code>`. The code is new on each start; the recorder refuses requests without it.
 
 1. Open the URL in a browser, on the same machine or on a phone in the same network.
 2. Accept the warning about the self-signed certificate.
@@ -227,6 +227,7 @@ All settings are in `config.env`. The main ones:
 | `TTS_CLIPS` | `600` | German sentences to record for TTS in total |
 | `TTS_VOICE` | `myvoice` | Voice name for the output files |
 | `TTS_BASE` | German kikiri base | TTS base weights |
+| `TTS_TRUST_BASE` | unset | `1` loads a base checkpoint that is not plain weights (full pickle). Only for files you trust |
 | `TTS_GATE_MODEL` | `openai/whisper-large-v3-turbo` | Whisper model for the clip check |
 | `TTS_GATE_WER` | `0.15` | Maximum WER for a clip to be kept |
 | `TTS_EPOCHS_1`, `TTS_EPOCHS_2` | `10`, `10` | TTS stage 1 and stage 2 epochs |

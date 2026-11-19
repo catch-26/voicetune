@@ -1,4 +1,4 @@
-import glob, importlib.util, json, os, shutil, subprocess, sys, jiwer, librosa, soundfile as sf, torch, yaml
+import glob, importlib.util, json, os, pickle, shutil, subprocess, sys, jiwer, librosa, soundfile as sf, torch, yaml
 from huggingface_hub import hf_hub_download, list_repo_files
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from common import DEV, norm
@@ -16,7 +16,12 @@ if not os.path.exists(base):
             if len(found) != 1: sys.exit(f"{repo}: expected one .pth at the repo root, found {found}. set TTS_BASE=<repo>/<file>.pth in config.env")
             name = found[0].removesuffix(".pth")
         src = hf_hub_download(repo, name + ".pth")
-    state = torch.load(src, map_location="cpu", weights_only=False)
+    try:
+        state = torch.load(src, map_location="cpu", weights_only=True)
+    except pickle.UnpicklingError as e:
+        if os.environ.get("TTS_TRUST_BASE") != "1":
+            sys.exit(f"{src} holds more than plain weights and was not loaded:\n{e}\nonly if you trust this file, add TTS_TRUST_BASE=1 to config.env and rerun")
+        state = torch.load(src, map_location="cpu", weights_only=False)
     if "net" not in state: state = {"net": {k: {n.removeprefix("module."): t for n, t in v.items()} for k, v in state.items()}}
     print("base components:", list(state["net"]))
     torch.save({"net": state["net"]}, base)

@@ -13,6 +13,7 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CTX = ssl._create_unverified_context()
+KEY = "testkey1"
 
 
 def free_port():
@@ -25,12 +26,12 @@ def start(tmp_path, run, n=2):
     (tmp_path / "data/wav").mkdir(parents=True)
     (tmp_path / "data/prompts.txt").write_text("en\tthe first test sentence\nde\tder zweite Testsatz hier\nen\ta third one\n", encoding="utf8")
     port = free_port()
-    env = dict(os.environ, PORT=str(port), N_PROMPTS=str(n), RUN=run)
+    env = dict(os.environ, PORT=str(port), N_PROMPTS=str(n), RUN=run, RECORDER_KEY=KEY)
     p = subprocess.Popen([sys.executable, os.path.join(ROOT, "stage1_record.py")], cwd=tmp_path, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     base = f"https://127.0.0.1:{port}"
     for _ in range(100):
         try:
-            urllib.request.urlopen(base + "/next", context=CTX, timeout=2)
+            urllib.request.urlopen(base + "/next?k=" + KEY, context=CTX, timeout=2)
             return p, base
         except OSError:
             if p.poll() is not None:
@@ -40,12 +41,16 @@ def start(tmp_path, run, n=2):
     pytest.fail("recorder did not start")
 
 
+def k(url):
+    return url + ("&" if "?" in url else "?") + "k=" + KEY
+
+
 def get(url):
-    return urllib.request.urlopen(url, context=CTX, timeout=10).read()
+    return urllib.request.urlopen(k(url), context=CTX, timeout=10).read()
 
 
 def post(url, data=b""):
-    return urllib.request.urlopen(urllib.request.Request(url, data=data, method="POST"), context=CTX, timeout=30).read()
+    return urllib.request.urlopen(urllib.request.Request(k(url), data=data, method="POST"), context=CTX, timeout=30).read()
 
 
 @pytest.mark.parametrize("run,mic", [("stt", "{audio:true}"), ("stt,tts", "{audio:{echoCancellation:false")])
@@ -83,9 +88,9 @@ def test_save_retake_and_exit(tmp_path):
         p.kill()
 
 
-def status(url, data=None):
+def status(url, data=None, key=True):
     try:
-        urllib.request.urlopen(urllib.request.Request(url, data=data, method="POST" if data is not None else "GET"), context=CTX, timeout=10)
+        urllib.request.urlopen(urllib.request.Request(k(url) if key else url, data=data, method="POST" if data is not None else "GET"), context=CTX, timeout=10)
         return 200
     except urllib.error.HTTPError as e:
         return e.code
@@ -101,5 +106,20 @@ def test_rejects_bad_ids_and_paths(tmp_path):
         assert status(base + "/wav?id=0") == 404
         assert status(base + "/wav?id=99") == 404
         assert not (tmp_path / "data/manifest.jsonl").exists()
+    finally:
+        p.kill()
+
+
+def test_needs_access_code(tmp_path):
+    p, base = start(tmp_path, "stt")
+    try:
+        assert status(base + "/", key=False) == 403
+        assert status(base + "/next?k=wrong", key=False) == 403
+        assert status(base + "/save?id=0", b"x", key=False) == 403
+        r = urllib.request.urlopen(base + "/?k=" + KEY, context=CTX, timeout=10)
+        cookie = r.headers["Set-Cookie"]
+        assert cookie.startswith("k=" + KEY) and "SameSite=Strict" in cookie and "HttpOnly" in cookie
+        req = urllib.request.Request(base + "/next", headers={"Cookie": "k=" + KEY})
+        assert json.loads(urllib.request.urlopen(req, context=CTX, timeout=10).read())["id"] == 0
     finally:
         p.kill()
