@@ -38,7 +38,7 @@ Everything else is installed inside the project folder or the download folder. T
 
 | Tool | Used when present | Fallback |
 |---|---|---|
-| uv | system `uv` | release binary in `.tools/bin` |
+| uv | system `uv` | uv 0.13.9 release binary in `.tools/bin`, checked against a pinned sha256 (x86_64 and aarch64) |
 | Python packages | | one virtual environment per engine (`.venv-parakeet`, `.venv-whisper`, `.venv-tts`) |
 | Hugging Face CLI | system `hf` | the `hf` in the virtual environment |
 | ffmpeg | system `ffmpeg` | `static-ffmpeg` uv tool |
@@ -46,6 +46,8 @@ Everything else is installed inside the project folder or the download folder. T
 | git | system `git` | GitHub tarball |
 | cmake, make | system tools | `cmake` and `ninja` as uv tools |
 | C++ compiler | system `c++`, `g++` or `clang++` | `zig` via the `ziglang` uv tool |
+
+The default Hugging Face models and the FLEURS dataset are downloaded at the commits listed in `lib/hf_revisions.txt`. A model id that is not listed there loads its latest revision.
 
 The export step builds whisper.cpp or transcribe.cpp. For a GPU build it needs the Vulkan SDK (`glslc` and headers) or ROCm. Without them it builds for the CPU.
 

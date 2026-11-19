@@ -4,6 +4,8 @@ Each release has a section headed `# <id> (<YYYY-MM-DD>)`, newest at the top, wh
 
 # Unreleased
 
+- The default Hugging Face models and the FLEURS dataset are downloaded at fixed revisions, listed in `lib/hf_revisions.txt`.
+- Without a system uv, `run.sh` installs uv 0.13.9 and checks its sha256, instead of the latest release.
 - The export step now downloads whisper.cpp, transcribe.cpp and openai/whisper at fixed commits (ca19af2, adfc502, 8609812) into `third_party/<repo>-<commit>/` instead of the latest commit.
 - Without a system ffmpeg, `run.sh` now installs the `static-ffmpeg` uv tool instead of the `imageio-ffmpeg` package.
 - The release archive is now named `voicetune-<id>.zip`.

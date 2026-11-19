@@ -3,6 +3,7 @@ from collections import Counter
 from misaki import de
 from kokoro_symbols import TextCleaner, dicts
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
+from hf_pins import rev
 from common import DEV, split, load, norm
 D = "data/tts"; W = f"{D}/wav"; os.makedirs(W, exist_ok=True)
 GATE = os.environ["TTS_GATE_MODEL"]; MAX_WER = float(os.environ["TTS_GATE_WER"])
@@ -26,7 +27,7 @@ def gate(r, a):
     key = (r["id"], os.path.getmtime(r["raw"]))
     if key not in cache:
         if model is None:
-            proc = WhisperProcessor.from_pretrained(GATE); model = WhisperForConditionalGeneration.from_pretrained(GATE).to(DEV).eval()
+            proc = WhisperProcessor.from_pretrained(GATE, revision=rev(GATE)); model = WhisperForConditionalGeneration.from_pretrained(GATE, revision=rev(GATE)).to(DEV).eval()
         f = proc(librosa.resample(a, orig_sr=24000, target_sr=16000), sampling_rate=16000, return_tensors="pt").input_features.to(DEV)
         with torch.no_grad(): hyp = proc.batch_decode(model.generate(f, language="de", task="transcribe"), skip_special_tokens=True)[0]
         cache[key] = {"id": r["id"], "mtime": key[1], "model": GATE, "hyp": hyp, "wer": jiwer.wer(" ".join(norm(r["text"])), " ".join(norm(hyp)))}

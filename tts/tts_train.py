@@ -1,5 +1,6 @@
 import glob, importlib.util, json, os, pickle, shutil, subprocess, sys, jiwer, librosa, soundfile as sf, torch, yaml
 from huggingface_hub import hf_hub_download, list_repo_files
+from hf_pins import rev
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from common import DEV, norm
 K = os.environ["KIKIRI"]; ST = f"{K}/StyleTTS2"; M = os.path.abspath("models/tts"); LOG = f"{M}/logs"
@@ -12,10 +13,10 @@ if not os.path.exists(base):
     if not os.path.exists(src):
         repo, _, name = src.partition(".pth")[0].rpartition("/") if src.endswith(".pth") else (src, "", "")
         if not name:
-            found = [f for f in list_repo_files(repo) if f.endswith(".pth") and "/" not in f]
+            found = [f for f in list_repo_files(repo, revision=rev(repo)) if f.endswith(".pth") and "/" not in f]
             if len(found) != 1: sys.exit(f"{repo}: expected one .pth at the repo root, found {found}. set TTS_BASE=<repo>/<file>.pth in config.env")
             name = found[0].removesuffix(".pth")
-        src = hf_hub_download(repo, name + ".pth")
+        src = hf_hub_download(repo, name + ".pth", revision=rev(repo))
     try:
         state = torch.load(src, map_location="cpu", weights_only=True)
     except pickle.UnpicklingError as e:
@@ -49,7 +50,7 @@ subprocess.run([sys.executable, f"{K}/scripts/test_inference.py", "--checkpoint"
                 "--config", f"{K}/training/config.json", "--output-dir", test], check=True)
 
 spec = importlib.util.spec_from_file_location("ti", f"{K}/scripts/test_inference.py"); ti = importlib.util.module_from_spec(spec); spec.loader.exec_module(ti)
-G = os.environ["TTS_GATE_MODEL"]; proc = WhisperProcessor.from_pretrained(G); asr = WhisperForConditionalGeneration.from_pretrained(G).to(DEV).eval()
+G = os.environ["TTS_GATE_MODEL"]; proc = WhisperProcessor.from_pretrained(G, revision=rev(G)); asr = WhisperForConditionalGeneration.from_pretrained(G, revision=rev(G)).to(DEV).eval()
 res = {}
 for i, text in enumerate(ti.TEST_SENTENCES):
     wav = f"{test}/test_{i + 1:02d}.wav"

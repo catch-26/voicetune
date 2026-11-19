@@ -36,3 +36,18 @@ def test_transformers_major_versions():
                 return Version(next(iter(r.specifier)).version)
     assert version("tts/requirements.txt").major == 4
     assert version("stt/requirements-whisper.txt") >= Version("5.3")
+
+
+def test_hf_revisions_pinned():
+    import re
+    pins = {}
+    for line in open(os.path.join(ROOT, "lib", "hf_revisions.txt"), encoding="utf8"):
+        parts = line.split("#")[0].split()
+        if parts:
+            assert len(parts) == 2 and re.fullmatch(r"[0-9a-f]{40}", parts[1]), line
+            pins[parts[0]] = parts[1]
+    run = open(os.path.join(ROOT, "run.sh"), encoding="utf8").read()
+    for repo in ["nvidia/parakeet-tdt-0.6b-v3", "openai/whisper-large-v3-turbo", "kikiri-tts/kikiri-german-base-51speakers-synthetic", "hexgrad/Kokoro-82M"]:
+        assert repo in run and repo in pins, repo
+    for size in ["tiny.en", "tiny", "base", "small"]:
+        assert "openai/whisper-" + size in pins

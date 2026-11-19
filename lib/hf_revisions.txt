@@ -1,0 +1,14 @@
+# Hugging Face repos used by default, pinned to a commit. Other repos load their latest revision.
+openai/whisper-tiny.en 87c7102498dcde7456f24cfd30239ca606ed9063
+openai/whisper-tiny 169d4a4341b33bc18d8881c4b69c2e104e1cc0af
+openai/whisper-base e37978b90ca9030d5170a5c07aadb050351a65bb
+openai/whisper-small 973afd24965f72e36ca33b3055d56a652f456b4d
+openai/whisper-large-v3-turbo 41f01f3fe87f28c78e2fbf8b568835947dd65ed9
+nvidia/parakeet-tdt-0.6b-v3 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
+nvidia/parakeet-tdt-0.6b-v2 c00e38779b028d48624b08ab3d9909952db43901
+nvidia/parakeet-tdt_ctc-110m 431a349f3051ab85c22b9b7a2741b5fe77065665
+nvidia/parakeet-ctc-0.6b ad09ba1cc62743fbc9814de5d2016fca9096485a
+kikiri-tts/kikiri-german-base-51speakers-synthetic 0d15d026c94423b00bbdfc6644b0910c8daa29a9
+hexgrad/Kokoro-82M f3ff3571791e39611d31c381e3a41a3af07b4987
+datasets/google/fleurs@refs/convert/parquet 168de341b3db6859a9bac1c50a2ef5e3b47647e0
+datasets/google/fleurs@main 70bb2e84b976b7e960aa89f1c648e09c59f894dd

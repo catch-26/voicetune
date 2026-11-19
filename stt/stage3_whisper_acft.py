@@ -1,5 +1,6 @@
 import copy, os, random, shutil, torch
 from huggingface_hub import hf_hub_download
+from hf_pins import rev
 from torch.nn import functional as F
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from common import DEV, BASE, lang_kw, split, fleurs, replay, audio
@@ -44,4 +45,4 @@ for ep in range(EPOCHS):
     print(f"epoch {ep} loss {sum(losses)/len(losses):.5f}")
 full.model = tgt.eval().cpu()
 full.save_pretrained("models/acft"); proc.save_pretrained("models/acft")
-shutil.copy(hf_hub_download(BASE, "vocab.json"), "models/acft/vocab.json")
+shutil.copy(hf_hub_download(BASE, "vocab.json", revision=rev(BASE)), "models/acft/vocab.json")

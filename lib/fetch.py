@@ -1,8 +1,10 @@
-import io, os, shutil, sys, tarfile, urllib.request
+import hashlib, io, os, shutil, sys, tarfile, urllib.request
 url, dest = sys.argv[1], sys.argv[2]
 if not url.startswith("https://"): sys.exit(f"refusing to download over plain http: {url}")
 tmp = dest + ".part"; shutil.rmtree(tmp, ignore_errors=True)
-tar = tarfile.open(fileobj=io.BytesIO(urllib.request.urlopen(url, timeout=60).read()))
+data = urllib.request.urlopen(url, timeout=60).read()
+if len(sys.argv) > 3 and hashlib.sha256(data).hexdigest() != sys.argv[3]: sys.exit(f"sha256 mismatch for {url}: got {hashlib.sha256(data).hexdigest()}, expected {sys.argv[3]}")
+tar = tarfile.open(fileobj=io.BytesIO(data))
 if hasattr(tarfile, "data_filter"): tar.extractall(tmp, filter="data")
 else:
     bad = [m.name for m in tar.getmembers() if os.path.isabs(m.name) or ".." in m.name.split("/") or m.issym() or m.islnk()]
