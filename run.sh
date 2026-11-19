@@ -50,19 +50,19 @@ if [[ $RUN == *tts* ]]; then
   need TTS_GATE_MODEL openai/whisper-large-v3-turbo; need TTS_GATE_WER 0.15; need TTS_EPOCHS_1 10; need TTS_EPOCHS_2 10; need TTS_BATCH 4
 fi
 T="$PWD/.tools"
-export HF_HOME="$DOWNLOAD_DIR/hf" PATH="$T/bin:$PATH" UV_TOOL_DIR="$T/uv" UV_TOOL_BIN_DIR="$T/bin"
+export PYTHONPATH="$PWD/lib" HF_HOME="$DOWNLOAD_DIR/hf" PATH="$T/bin:$PATH" UV_TOOL_DIR="$T/uv" UV_TOOL_BIN_DIR="$T/bin"
 mkdir -p data/wav models "$OUT_DIR" "$DOWNLOAD_DIR" "$T/bin"
-have uv || { echo "uv not found, installing it into $T/bin"; python3 fetch.py "https://github.com/astral-sh/uv/releases/latest/download/uv-$(uname -m)-unknown-linux-gnu.tar.gz" "$T/bin"; }
+have uv || { echo "uv not found, installing it into $T/bin"; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/latest/download/uv-$(uname -m)-unknown-linux-gnu.tar.gz" "$T/bin"; }
 venv() { export VIRTUAL_ENV="$PWD/$1"; [ -d "$1" ] || uv venv --python "$2" "$1"; if [ ! -f "$1/.installed" ]; then uv pip install --torch-backend "$TORCH_BACKEND" -r "$3"; touch "$1/.installed"; fi; }
 if [[ $RUN == *tts* ]]; then
   KIKIRI="$DOWNLOAD_DIR/third_party/kikiri-tts-${KSHA:0:7}"; export KIKIRI
   if [ ! -f "$KIKIRI/.ok" ]; then
     rm -rf "$KIKIRI"; G=https://github.com/semidark
-    python3 fetch.py "$G/kikiri-tts/archive/$KSHA.tar.gz" "$KIKIRI"; python3 fetch.py "$G/StyleTTS2/archive/$SSHA.tar.gz" "$KIKIRI/StyleTTS2"; python3 fetch.py "$G/kokoro/archive/$OSHA.tar.gz" "$KIKIRI/kokoro"
+    python3 lib/fetch.py "$G/kikiri-tts/archive/$KSHA.tar.gz" "$KIKIRI"; python3 lib/fetch.py "$G/StyleTTS2/archive/$SSHA.tar.gz" "$KIKIRI/StyleTTS2"; python3 lib/fetch.py "$G/kokoro/archive/$OSHA.tar.gz" "$KIKIRI/kokoro"
     touch "$KIKIRI/.ok"
   fi
-  venv .venv-tts 3.12 requirements-tts.txt; PYT=.venv-tts/bin/python
-  export PYTHONPATH="$KIKIRI/kokoro:$KIKIRI/StyleTTS2"
+  venv .venv-tts 3.12 tts/requirements.txt; PYT=.venv-tts/bin/python
+  export PYTHONPATH="$PYTHONPATH:$KIKIRI/kokoro:$KIKIRI/StyleTTS2"
   EL=$($PYT -c 'import espeakng_loader, os; print(os.path.dirname(espeakng_loader.__file__))')
   if have espeak-ng && [ ! -L "$EL/libespeak-ng.so" ]; then
     LDC=$(command -v ldconfig || echo /sbin/ldconfig); L=$($LDC -p | grep -o '/[^ ]*libespeak-ng\.so\.1$' | head -1); ED=$(espeak-ng --version | sed -n 's/.*Data at: *//p')
@@ -70,7 +70,7 @@ if [[ $RUN == *tts* ]]; then
   fi
   $PYT -c "from misaki import de; assert de.DEG2P()('Guten Tag')[0]" || { echo "German phonemizer failed: install espeak-ng with your package manager and rerun"; exit 1; }
 fi
-if [[ $RUN == *stt* ]]; then venv ".venv-$ENGINE" "$([ "$ENGINE" = parakeet ] && echo 3.12 || echo 3.13)" "requirements-$ENGINE.txt"; PY=.venv-$ENGINE/bin/python; PYD=$PY; else PYD=$PYT; fi
+if [[ $RUN == *stt* ]]; then venv ".venv-$ENGINE" "$([ "$ENGINE" = parakeet ] && echo 3.12 || echo 3.13)" "stt/requirements-$ENGINE.txt"; PY=.venv-$ENGINE/bin/python; PYD=$PY; else PYD=$PYT; fi
 VIRTUAL_ENV="$PWD/$(dirname "$(dirname "$PYD")")"; export VIRTUAL_ENV
 if [ "$TORCH_BACKEND" != cpu ] && [ "${DEVICE:-}" != cpu ] && ! grep -q '^GPU=' config.env; then
   l=$($PYD -c "import torch; [print(i, torch.cuda.get_device_name(i)) for i in range(torch.cuda.device_count())]"); GPU=
@@ -94,27 +94,27 @@ if [ "$TORCH_BACKEND" != cpu ] && ! $PYD -c "import torch, sys; sys.exit(0 if to
 fi
 hf_get() { if have hf; then hf download "$@" >/dev/null; else "$VIRTUAL_ENV/bin/hf" download "$@" >/dev/null; fi; }
 if [[ $RUN == *stt* ]]; then if [ "$ENGINE" = parakeet ]; then hf_get "$PARAKEET_MODEL"; else hf_get "openai/whisper-$WHISPER_MODEL"; fi; fi
-[ -f data/prompts.txt ] || $PYD stage0_data.py
+[ -f data/prompts.txt ] || $PYD record/stage0_data.py
 TARGET=$N_PROMPTS
-if [[ $RUN == *tts* ]]; then $PYT tts_prompts.py; TARGET=$(wc -l < data/prompts.txt); fi
+if [[ $RUN == *tts* ]]; then $PYT tts/tts_prompts.py; TARGET=$(wc -l < data/prompts.txt); fi
 n=$( [ -f data/manifest.jsonl ] && wc -l < data/manifest.jsonl || echo 0 )
 if [ "$TARGET" -gt 0 ] && [ "$n" -lt "$TARGET" ]; then
   echo "recorded $n/$TARGET — starting recorder"
-  N_PROMPTS=$TARGET $PYD stage1_record.py
+  N_PROMPTS=$TARGET $PYD record/stage1_record.py
 fi
 DONE=
 if [[ $RUN == *tts* ]]; then
   TTS_OUT="$OUT_DIR/kokoro-de-$TTS_VOICE.pth"
-  if [ ! -f "$TTS_OUT" ]; then $PYT tts_prep.py; $PYT tts_train.py; fi
+  if [ ! -f "$TTS_OUT" ]; then $PYT tts/tts_prep.py; $PYT tts/tts_train.py; fi
   DONE="$TTS_OUT $OUT_DIR/$TTS_VOICE.pt"
 fi
 if [[ $RUN != *stt* ]]; then echo "done: $DONE"; exit 0; fi
 if [ "$ENGINE" = parakeet ]; then
-  [ -f models/parakeet/ft.nemo ] || $PY stage2_parakeet.py
+  [ -f models/parakeet/ft.nemo ] || $PY stt/stage2_parakeet.py
   OUT_GLOB="$OUT_DIR/$(basename "$PARAKEET_MODEL")-*-ft-*.gguf"
 else
-  [ -f models/ft/config.json ] || $PY stage2_whisper.py
-  [ -f models/acft/config.json ] || $PY stage3_whisper_acft.py
+  [ -f models/ft/config.json ] || $PY stt/stage2_whisper.py
+  [ -f models/acft/config.json ] || $PY stt/stage3_whisper_acft.py
   OUT_GLOB="$OUT_DIR/*q8_0.bin"
 fi
 if ! compgen -G "$OUT_GLOB" >/dev/null; then
@@ -127,6 +127,6 @@ if ! compgen -G "$OUT_GLOB" >/dev/null; then
     done
     export CC="$T/bin/cc" CXX="$T/bin/c++"
   fi
-  if [ "$ENGINE" = parakeet ]; then PY=$PY bash stage4_parakeet.sh; else PY=$PY bash stage4_whisper.sh; fi
+  if [ "$ENGINE" = parakeet ]; then PY=$PY bash stt/stage4_parakeet.sh; else PY=$PY bash stt/stage4_whisper.sh; fi
 fi
 echo "done: $(compgen -G "$OUT_GLOB") $DONE"

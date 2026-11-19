@@ -73,8 +73,8 @@ The first run asks for every setting, each with a default, and saves the answers
 
 ## How it works
 
-1. **Prompts.** `stage0_data.py` picks sentences to read in your languages. With TTS selected, `tts_prompts.py` adds German sentences.
-2. **Recording.** `stage1_record.py` serves the recorder page over HTTPS. You read the sentences aloud. It stops when the target count is reached.
+1. **Prompts.** `record/stage0_data.py` picks sentences to read in your languages. With TTS selected, `tts/tts_prompts.py` adds German sentences.
+2. **Recording.** `record/stage1_record.py` serves the recorder page over HTTPS. You read the sentences aloud. It stops when the target count is reached.
 3. **Training.** The STT engine or the TTS model is fine-tuned on your recordings.
 4. **Evaluation.** The result is checked against held-out recordings and public speech data.
 5. **Export.** The model is converted and written to the output folder.
@@ -125,7 +125,7 @@ A local `.nemo` file also works, for example an earlier fine-tune. Plain RNN-T m
 
 In Offline Voice Input, set the language hint (for example `en` or `de`). The v3 model has no automatic language detection in transcribe.cpp.
 
-NeMo's TDT loss needs CUDA. On ROCm and on the CPU, `tdt_loss.py` replaces it with a vectorized PyTorch version that matches NeMo's reference loss. It does not apply the FastEmit and omega regularizers.
+NeMo's TDT loss needs CUDA. On ROCm and on the CPU, `stt/tdt_loss.py` replaces it with a vectorized PyTorch version that matches NeMo's reference loss. It does not apply the FastEmit and omega regularizers.
 
 ### Whisper models
 
@@ -169,9 +169,9 @@ Pinned upstream sources:
 
 Steps:
 
-1. **Prompts.** `tts_prompts.py` adds German sentences from the Common Voice sentence collector (CC0) until `TTS_CLIPS` is reached. It picks sentences that cover common German phoneme pairs. The recorder asks for them after the STT prompts.
-2. **Preparation.** `tts_prep.py` converts each original recording to 24 kHz mono, trims silence and keeps clips of 2 to 30 seconds. A stock Whisper model checks each clip and drops clips above `TTS_GATE_WER`. Phonemes come from the misaki German G2P, with `ʏ` mapped to `y` because Kokoro has no `ʏ`. The report is written to `data/tts/report.json`.
-3. **Training.** `tts_train.py` trains stage 1 on your clips (this trains the style encoder that the base model lacks), then stage 2. It then extracts the voicepack, synthesizes test sentences and measures their WER with Whisper (`models/tts/eval.json`).
+1. **Prompts.** `tts/tts_prompts.py` adds German sentences from the Common Voice sentence collector (CC0) until `TTS_CLIPS` is reached. It picks sentences that cover common German phoneme pairs. The recorder asks for them after the STT prompts.
+2. **Preparation.** `tts/tts_prep.py` converts each original recording to 24 kHz mono, trims silence and keeps clips of 2 to 30 seconds. A stock Whisper model checks each clip and drops clips above `TTS_GATE_WER`. Phonemes come from the misaki German G2P, with `ʏ` mapped to `y` because Kokoro has no `ʏ`. The report is written to `data/tts/report.json`.
+3. **Training.** `tts/tts_train.py` trains stage 1 on your clips (this trains the style encoder that the base model lacks), then stage 2. It then extracts the voicepack, synthesizes test sentences and measures their WER with Whisper (`models/tts/eval.json`).
 
 Base weights (`TTS_BASE`):
 
@@ -274,11 +274,24 @@ To switch the STT model or engine, edit `config.env`, then delete `models/` and 
 
 ## Development
 
+Repository layout:
+
+| Folder | Contents |
+|---|---|
+| `record/` | prompt selection, the recorder server and its page |
+| `stt/` | Parakeet and Whisper training, evaluation and export, with their requirements |
+| `tts/` | Kokoro prompt selection, preparation and training, with its requirements |
+| `lib/` | helpers shared by both workflows (`common.py`, `fetch.py`) |
+| `tools/` | release tooling |
+| `tests/` | tests |
+
+`run.sh` runs every script from the repository root, with `lib/` on `PYTHONPATH`.
+
 - Tests: `tests/`, pytest, CPU only. Install with `pip install -r tests/requirements.txt`.
 - Lint: `shellcheck` for the shell scripts and `ruff` for Python.
 - CI runs lint and tests on every pull request.
 
-The recorder page is `web/recorder.html`. `stage1_record.py` serves it and fills in `__MIC__` and `__REC__` for the selected workflow.
+The recorder page is `record/recorder.html`. `record/stage1_record.py` serves it and fills in `__MIC__` and `__REC__` for the selected workflow.
 
 ## Versioning
 

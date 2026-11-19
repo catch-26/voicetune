@@ -21,9 +21,9 @@ jobs:
           python-version: "3.13"
       - run: pip install -r tests/requirements.txt
       - name: bash syntax
-        run: for f in *.sh; do bash -n "$f"; done
+        run: for f in run.sh stt/*.sh; do bash -n "$f"; done
       - name: shellcheck
-        run: shellcheck -S warning -f gcc *.sh
+        run: shellcheck -S warning -f gcc run.sh stt/*.sh
       - name: ruff
         run: ruff check --output-format github .
 

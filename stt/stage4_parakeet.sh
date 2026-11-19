@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 TP="$DOWNLOAD_DIR/third_party"; mkdir -p "$TP" "$OUT_DIR"
-source ./ggml_build.sh
-get() { [ -d "$2" ] && return; if command -v git >/dev/null; then git clone --depth 1 "$1" "$2"; else $PY fetch.py "$1/archive/HEAD.tar.gz" "$2"; fi; }
+source stt/ggml_build.sh
+get() { [ -d "$2" ] && return; if command -v git >/dev/null; then git clone --depth 1 "$1" "$2"; else $PY lib/fetch.py "$1/archive/HEAD.tar.gz" "$2"; fi; }
 get https://github.com/handy-computer/transcribe.cpp "$TP/transcribe.cpp"
 slug=$(basename "$PARAKEET_MODEL" .nemo)
 conv="$TP/conv/$slug"; mkdir -p "$conv"

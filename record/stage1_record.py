@@ -23,7 +23,7 @@ elif not os.path.exists("cert.pem"):
     open("cert.pem", "wb").write(cert.public_bytes(serialization.Encoding.PEM))
 if os.path.exists("key.pem"): os.chmod("key.pem", 0o600)
 
-PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", "recorder.html"), encoding="utf8").read()
+PAGE = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "recorder.html"), encoding="utf8").read()
 
 MIC = "{echoCancellation:false,noiseSuppression:false,autoGainControl:false}" if TTS else "true"
 REC = "{audioBitsPerSecond:128000}" if TTS else "{}"
