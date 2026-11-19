@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: pip
-    directories: ["/", "/tests"]
+    directories: ["/stt", "/tts", "/tests"]
     schedule:
       interval: daily
       time: "02:00"

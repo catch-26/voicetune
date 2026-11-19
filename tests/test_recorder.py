@@ -27,7 +27,7 @@ def start(tmp_path, run, n=2):
     (tmp_path / "data/prompts.txt").write_text("en\tthe first test sentence\nde\tder zweite Testsatz hier\nen\ta third one\n", encoding="utf8")
     port = free_port()
     env = dict(os.environ, PORT=str(port), N_PROMPTS=str(n), RUN=run, RECORDER_KEY=KEY)
-    p = subprocess.Popen([sys.executable, os.path.join(ROOT, "stage1_record.py")], cwd=tmp_path, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.Popen([sys.executable, os.path.join(ROOT, "record", "stage1_record.py")], cwd=tmp_path, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     base = f"https://127.0.0.1:{port}"
     for _ in range(100):
         try:
