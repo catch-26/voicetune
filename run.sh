@@ -44,10 +44,12 @@ case $RUN in stt|tts|both) ;; *) echo "unknown workflow '$RUN': use stt, tts or 
 { grep -v '^RUN_LAST=' config.env || true; echo "RUN_LAST=$RUN"; } > config.env.tmp && mv config.env.tmp config.env
 [ "$RUN" = both ] && RUN=stt,tts; export RUN
 if [[ $RUN == *tts* ]]; then
-  [[ ",$LANGS," == *,de,* ]] || { echo "the TTS workflow is German: add de to LANGS in config.env (and de_de to FLEURS_CFGS)"; exit 1; }
-  need TTS_CLIPS 600 "German sentences to record for TTS in total (~5.5 s each; the published kikiri voices used 455-627)"
+  need TTS_LANG "$([[ ",$LANGS," == *,de,* ]] && echo de || echo en)" "TTS voice language: de (German) | en (English)"
+  case $TTS_LANG in de) TL=German B=kikiri-tts/kikiri-german-base-51speakers-synthetic/kikiri_german_base_51spk_ep4.pth ;; en) TL=English B=hexgrad/Kokoro-82M/kokoro-v1_0.pth ;; *) echo "TTS_LANG=$TTS_LANG is not supported: use de or en"; exit 1 ;; esac
+  [[ ",$LANGS," == *,$TTS_LANG,* ]] || { echo "TTS_LANG=$TTS_LANG: add $TTS_LANG to LANGS in config.env (and its FLEURS config to FLEURS_CFGS)"; exit 1; }
+  need TTS_CLIPS 600 "$TL sentences to record for TTS in total (~5.5 s each; the published kikiri voices used 455-627)"
   need TTS_VOICE myvoice "voice name for the TTS output files"
-  need TTS_BASE kikiri-tts/kikiri-german-base-51speakers-synthetic/kikiri_german_base_51spk_ep4.pth "TTS base weights: German kikiri base (default) | hexgrad/Kokoro-82M/kokoro-v1_0.pth (English base) | a local .pth"
+  need TTS_BASE "$B" "TTS base weights: kikiri-tts/kikiri-german-base-51speakers-synthetic/kikiri_german_base_51spk_ep4.pth (German) | hexgrad/Kokoro-82M/kokoro-v1_0.pth (English) | a local .pth"
   need TTS_GATE_MODEL openai/whisper-large-v3-turbo; need TTS_GATE_WER 0.15; need TTS_EPOCHS_1 10; need TTS_EPOCHS_2 10; need TTS_BATCH 4
 fi
 T="$PWD/.tools"
@@ -79,7 +81,7 @@ if [[ $RUN == *tts* ]]; then
     LDC=$(command -v ldconfig || echo /sbin/ldconfig); L=$($LDC -p | grep -o '/[^ ]*libespeak-ng\.so\.1$' | head -1); ED=$(espeak-ng --version | sed -n 's/.*Data at: *//p')
     if [ -n "$L" ] && [ -d "$ED" ]; then echo "using the system espeak-ng ($L)"; rm -rf "$EL/espeak-ng-data" "$EL/libespeak-ng.so"; ln -s "$L" "$EL/libespeak-ng.so"; ln -s "$ED" "$EL/espeak-ng-data"; fi
   fi
-  $PYT -c "from misaki import de; assert de.DEG2P()('Guten Tag')[0]" || { echo "German phonemizer failed: install espeak-ng with your package manager and rerun"; exit 1; }
+  $PYT tts/tts_lang.py || { echo "$TL phonemizer failed: install espeak-ng with your package manager and rerun"; exit 1; }
 fi
 if [[ $RUN == *stt* ]]; then venv ".venv-$ENGINE" "$([ "$ENGINE" = parakeet ] && echo 3.12 || echo 3.13)" "stt/requirements-$ENGINE.txt"; PY=.venv-$ENGINE/bin/python; PYD=$PY; else PYD=$PYT; fi
 VIRTUAL_ENV="$PWD/$(dirname "$(dirname "$PYD")")"; export VIRTUAL_ENV
@@ -115,7 +117,7 @@ if [ "$TARGET" -gt 0 ] && [ "$n" -lt "$TARGET" ]; then
 fi
 DONE=
 if [[ $RUN == *tts* ]]; then
-  TTS_OUT="$OUT_DIR/kokoro-de-$TTS_VOICE.pth"
+  TTS_OUT="$OUT_DIR/kokoro-$TTS_LANG-$TTS_VOICE.pth"
   if [ ! -f "$TTS_OUT" ]; then $PYT tts/tts_prep.py; $PYT tts/tts_train.py; fi
   DONE="$TTS_OUT $OUT_DIR/$TTS_VOICE.pt"
 fi

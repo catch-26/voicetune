@@ -4,6 +4,7 @@ from hf_pins import rev
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from common import DEV, norm
 from device_patch import patch
+from tts_lang import LANG, TEST_EN, g2p_note
 K = os.environ["KIKIRI"]; ST = f"{K}/StyleTTS2"; M = os.path.abspath("models/tts"); LOG = f"{M}/logs"
 VOICE = os.environ["TTS_VOICE"]; OUT = os.environ["OUT_DIR"]; D = os.path.abspath("data/tts")
 os.makedirs(LOG, exist_ok=True)
@@ -33,7 +34,7 @@ E1, E2 = int(os.environ["TTS_EPOCHS_1"]), int(os.environ["TTS_EPOCHS_2"])
 cfg.update(batch_size=int(os.environ["TTS_BATCH"]), epochs_1st=E1, epochs_2nd=E2, save_freq=1, pretrained_model=base, log_dir=LOG,
            first_stage_path="first_stage.pth", load_only_params=True, second_stage_load_pretrained=False)
 cfg["data_params"].update(train_data=f"{D}/train_list.txt", val_data=f"{D}/val_list.txt", root_path=f"{D}/wav",
-                          OOD_data=f"{K}/training/OOD_texts.txt", num_workers=min(8, os.cpu_count() or 1))
+                          OOD_data=f"{K}/training/OOD_texts.txt" if LANG == "de" else f"{D}/ood.txt", num_workers=min(8, os.cpu_count() or 1))
 yaml.safe_dump(cfg, open(f"{M}/config.yml", "w"), allow_unicode=True, sort_keys=False)
 
 patch(ST)
@@ -49,18 +50,27 @@ if not os.path.exists(last): last = sorted(glob.glob(f"{LOG}/epoch_2nd_*.pth"))[
 vp, test = f"{M}/{VOICE}.pt", f"{M}/test"
 subprocess.run([sys.executable, f"{K}/scripts/extract_voicepack.py", "--model", last, "--style-encoder-model", f"{LOG}/first_stage.pth",
                 "--audio-dir", f"{D}/wav", "--output", vp], check=True)
-subprocess.run([sys.executable, f"{K}/scripts/test_inference.py", "--checkpoint", last, "--voicepack", vp,
-                "--config", f"{K}/training/config.json", "--output-dir", test], check=True)
-
 spec = importlib.util.spec_from_file_location("ti", f"{K}/scripts/test_inference.py"); ti = importlib.util.module_from_spec(spec); spec.loader.exec_module(ti)
+if LANG == "de":
+    subprocess.run([sys.executable, f"{K}/scripts/test_inference.py", "--checkpoint", last, "--voicepack", vp,
+                    "--config", f"{K}/training/config.json", "--output-dir", test], check=True)
+    conv, sentences = f"{test}/kokoro_german_converted.pth", ti.TEST_SENTENCES
+else:
+    from kokoro import KModel, KPipeline
+    conv, sentences = ti.convert_checkpoint(last, f"{test}/kokoro_converted.pth"), TEST_EN
+    km = KModel(repo_id="hexgrad/Kokoro-82M", config=f"{K}/training/config.json", model=conv).to(DEV).eval()
+    pipe = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M", model=km); voice = torch.load(vp, map_location="cpu", weights_only=True)
+    for i, text in enumerate(sentences):
+        parts = [torch.as_tensor(a).cpu() for _, _, a in pipe(text, voice=voice, speed=1) if a is not None]
+        if parts: sf.write(f"{test}/test_{i + 1:02d}.wav", torch.cat(parts).numpy(), 24000)
 G = os.environ["TTS_GATE_MODEL"]; proc = WhisperProcessor.from_pretrained(G, revision=rev(G)); asr = WhisperForConditionalGeneration.from_pretrained(G, revision=rev(G)).to(DEV).eval()
 res = {}
-for i, text in enumerate(ti.TEST_SENTENCES):
+for i, text in enumerate(sentences):
     wav = f"{test}/test_{i + 1:02d}.wav"
     if not os.path.exists(wav): res[text] = None; continue
     a, sr = sf.read(wav, dtype="float32")
     f = proc(librosa.resample(a, orig_sr=sr, target_sr=16000), sampling_rate=16000, return_tensors="pt").input_features.to(DEV)
-    with torch.no_grad(): hyp = proc.batch_decode(asr.generate(f, language="de", task="transcribe"), skip_special_tokens=True)[0]
+    with torch.no_grad(): hyp = proc.batch_decode(asr.generate(f, language=LANG, task="transcribe"), skip_special_tokens=True)[0]
     res[text] = {"hyp": hyp, "wer": jiwer.wer(" ".join(norm(text)), " ".join(norm(hyp)))}
 ok = [v["wer"] for v in res.values() if v]
 json.dump({"checkpoint": last, "mean_wer": sum(ok) / max(1, len(ok)), "missing": sum(v is None for v in res.values()), "sentences": res},
@@ -68,7 +78,7 @@ json.dump({"checkpoint": last, "mean_wer": sum(ok) / max(1, len(ok)), "missing":
 print(f"tts intelligibility (stock Whisper on {len(ok)} test sentences): mean WER {sum(ok) / max(1, len(ok)):.3f}. listen: {test}/")
 
 os.makedirs(OUT, exist_ok=True)
-shutil.copy(f"{test}/kokoro_german_converted.pth", f"{OUT}/kokoro-de-{VOICE}.pth")
+shutil.copy(conv, f"{OUT}/kokoro-{LANG}-{VOICE}.pth")
 shutil.copy(vp, f"{OUT}/{VOICE}.pt")
-shutil.copy(f"{K}/training/config.json", f"{OUT}/kokoro-de-{VOICE}.config.json")
-open(f"{OUT}/kokoro-de-{VOICE}.g2p.txt", "w").write("trained with misaki fork 9cda926 DEG2P, then \u028f -> y\n" + (subprocess.run(["espeak-ng", "--version"], capture_output=True, text=True).stdout if shutil.which("espeak-ng") else "bundled espeakng-loader\n"))
+shutil.copy(f"{K}/training/config.json", f"{OUT}/kokoro-{LANG}-{VOICE}.config.json")
+open(f"{OUT}/kokoro-{LANG}-{VOICE}.g2p.txt", "w").write(g2p_note() + (subprocess.run(["espeak-ng", "--version"], capture_output=True, text=True).stdout if shutil.which("espeak-ng") else "bundled espeakng-loader\n"))
