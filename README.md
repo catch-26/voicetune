@@ -3,7 +3,7 @@
 voicetune fine-tunes speech models on your own voice, on your own machine. It covers both directions:
 
 - **Speech-to-text (STT):** fine-tunes NVIDIA Parakeet or OpenAI Whisper on your recordings and exports a quantized model for offline voice input apps on Android.
-- **Text-to-speech (TTS):** trains a German Kokoro-82M voice from the same recordings, using the kikiri-tts recipe.
+- **Text-to-speech (TTS):** trains a Kokoro-82M voice in German or English from the same recordings, using the kikiri-tts recipe.
 
 It is a set of shell and Python scripts, not a compiled application. You start it from a terminal with `./run.sh`. A local web page shows sentences to read aloud and records them. The recordings are used for either workflow, or for both.
 
@@ -32,13 +32,13 @@ Training uses an AMD GPU (ROCm) or an NVIDIA GPU (CUDA) when one is available, a
 - `python3`
 - A browser with microphone access, on the same machine or on a phone in the same network
 - Optional: an AMD GPU with ROCm, or an NVIDIA GPU with CUDA
-- Optional for TTS: `espeak-ng` from your package manager (a bundled copy is used otherwise)
+- Optional for TTS: `espeak-ng` from your package manager (a bundled copy is used otherwise, see [Text-to-speech](#text-to-speech))
 
 Everything else is installed inside the project folder or the download folder. Tools already on the system are used when present:
 
 | Tool | Used when present | Fallback |
 |---|---|---|
-| uv | system `uv` | uv 0.13.9 release binary in `.tools/bin`, checked against a pinned sha256 (Linux and macOS, x86_64 and arm64) |
+| uv | system `uv` | uv 0.13.9, pinned (all platforms) |
 | Python packages | | one virtual environment per engine (`.venv-parakeet`, `.venv-whisper`, `.venv-tts`) |
 | Hugging Face CLI | system `hf` | the `hf` in the virtual environment |
 | ffmpeg | system `ffmpeg` | `static-ffmpeg` uv tool |
@@ -75,7 +75,7 @@ The first run asks for every setting, each with a default, and saves the answers
 
 ## How it works
 
-1. **Prompts.** `record/stage0_data.py` picks sentences to read in your languages. With TTS selected, `tts/tts_prompts.py` adds German sentences.
+1. **Prompts.** `record/stage0_data.py` picks sentences to read in your languages. With TTS selected, `tts/tts_prompts.py` adds sentences in the TTS language.
 2. **Recording.** `record/stage1_record.py` serves the recorder page over HTTPS. You read the sentences aloud. It stops when the target count is reached.
 3. **Training.** The STT engine or the TTS model is fine-tuned on your recordings.
 4. **Evaluation.** The result is checked against held-out recordings and public speech data.
@@ -159,7 +159,14 @@ If a check fails, the run stops. `FORCE=1 ./run.sh` continues anyway. The WER tr
 
 ## Text-to-speech
 
-The TTS workflow trains a German Kokoro-82M voice with the kikiri-tts recipe. It needs `de` in `LANGS`.
+The TTS workflow fine-tunes Kokoro-82M on your voice with the kikiri-tts recipe. `TTS_LANG` sets the language of the voice: `de` (German) or `en` (American English). It must be one of the languages in `LANGS`. The first TTS run asks for it; the default is `de` when `LANGS` contains `de`, else `en`.
+
+| `TTS_LANG` | Prompts | Phonemizer | Default base |
+|---|---|---|---|
+| `de` | Common Voice German sentences | misaki German G2P (espeak-ng), `ʏ` mapped to `y` | kikiri German base |
+| `en` | Common Voice English sentences | misaki English G2P (lexicon and spaCy, espeak-ng for unknown words) | Kokoro-82M v1.0 |
+
+The clip check and the final evaluation run Whisper in the same language.
 
 Pinned upstream sources:
 
@@ -171,19 +178,28 @@ Pinned upstream sources:
 
 Steps:
 
-1. **Prompts.** `tts/tts_prompts.py` adds German sentences from the Common Voice sentence collector (CC0) until `TTS_CLIPS` is reached. It picks sentences that cover common German phoneme pairs. The recorder asks for them after the STT prompts.
-2. **Preparation.** `tts/tts_prep.py` converts each original recording to 24 kHz mono, trims silence and keeps clips of 2 to 30 seconds. A stock Whisper model checks each clip and drops clips above `TTS_GATE_WER`. Phonemes come from the misaki German G2P, with `ʏ` mapped to `y` because Kokoro has no `ʏ`. The report is written to `data/tts/report.json`.
+1. **Prompts.** `tts/tts_prompts.py` adds sentences in `TTS_LANG` from the Common Voice sentence collector (CC0) until `TTS_CLIPS` is reached. It picks sentences that cover common phoneme pairs of that language. The recorder asks for them after the STT prompts.
+2. **Preparation.** `tts/tts_prep.py` converts each original recording to 24 kHz mono, trims silence and keeps clips of 2 to 30 seconds. A stock Whisper model checks each clip and drops clips above `TTS_GATE_WER`. Phonemes come from the misaki G2P for `TTS_LANG`. For German, `ʏ` is mapped to `y` because Kokoro has no `ʏ`. For English, it also writes unrecorded Common Voice sentences as the out-of-domain texts for stage 2; German uses the kikiri-tts list. The report is written to `data/tts/report.json`.
 3. **Training.** `tts/tts_train.py` trains stage 1 on your clips (this trains the style encoder that the base model lacks), then stage 2. It then extracts the voicepack, synthesizes test sentences and measures their WER with Whisper (`models/tts/eval.json`).
 
-Base weights (`TTS_BASE`):
+Base weights (`TTS_BASE`, default by `TTS_LANG`):
 
-- `kikiri-tts/kikiri-german-base-51speakers-synthetic` (default): German stage-1 base, Apache-2.0, trained on synthetic audio of undisclosed origin.
-- `hexgrad/Kokoro-82M/kokoro-v1_0.pth`: English base.
+- `kikiri-tts/kikiri-german-base-51speakers-synthetic` (default for `de`): German stage-1 base, Apache-2.0, trained on synthetic audio of undisclosed origin.
+- `hexgrad/Kokoro-82M/kokoro-v1_0.pth` (default for `en`): the original Kokoro-82M weights, Apache-2.0.
 - A local `.pth` file.
 
-German clips recorded before the recorder kept original uploads have no original file. The TTS run offers to record them again.
+Clips recorded before the recorder kept original uploads have no original file. The TTS run offers to record them again.
 
-The phonemizer uses the system `espeak-ng` when present, else the bundled one. Its version is written next to the model. A G2P that uses the voice elsewhere must use the same version and map `ʏ` to `y`.
+To switch `TTS_LANG` later, also set `TTS_BASE` to the matching base and delete `data/tts` and `models/tts`.
+
+### espeak-ng
+
+Kokoro reads phonemes, not text. The misaki G2P turns text into phonemes: German goes through espeak-ng (plus a small override list), English uses espeak-ng for words missing from its lexicon. misaki loads espeak-ng through the `espeakng-loader` package.
+
+- **System copy:** on Linux, when `espeak-ng` is installed, `run.sh` links the system library and its data into `espeakng-loader`.
+- **Bundled copy:** otherwise the library and data inside the `espeakng-loader` wheel from PyPI are used (`espeakng-loader==0.2.4`, espeak-ng 1.52.0), pinned in `tts/requirements.txt` like the other packages.
+
+The espeak-ng version is written to `<out>/kokoro-<lang>-<voice>.g2p.txt`. A G2P that uses the voice elsewhere must use the same version and, for German, map `ʏ` to `y`. The English spaCy model `en_core_web_sm` 3.8.0 is pinned by URL and sha256 in `tts/requirements.txt`.
 
 ## Hardware
 
@@ -226,9 +242,10 @@ All settings are in `config.env`. The main ones:
 | `FT_EPOCHS` | `3` | STT fine-tune epochs |
 | `ACFT_EPOCHS` | `8` | Whisper ACFT epochs |
 | `FORGET_TOL` | `0.10` | Allowed WER increase in the quality gates |
-| `TTS_CLIPS` | `600` | German sentences to record for TTS in total |
+| `TTS_LANG` | `de` if in `LANGS`, else `en` | TTS voice language: `de` or `en` |
+| `TTS_CLIPS` | `600` | Sentences to record for TTS in total, in `TTS_LANG` |
 | `TTS_VOICE` | `myvoice` | Voice name for the output files |
-| `TTS_BASE` | German kikiri base | TTS base weights |
+| `TTS_BASE` | by `TTS_LANG` | TTS base weights |
 | `TTS_TRUST_BASE` | unset | `1` loads a base checkpoint that is not plain weights (full pickle). Only for files you trust |
 | `TTS_GATE_MODEL` | `openai/whisper-large-v3-turbo` | Whisper model for the clip check |
 | `TTS_GATE_WER` | `0.15` | Maximum WER for a clip to be kept |
@@ -243,7 +260,7 @@ To switch the STT model or engine, edit `config.env`, then delete `models/` and 
 |---|---|
 | STT, Parakeet | `<out>/<model>-<langs>-ft-Q4_K_M.gguf` |
 | STT, Whisper | `<out>/whisper-<size>-<langs>-acft-q8_0.bin` |
-| TTS | `<out>/kokoro-de-<voice>.pth`, `<out>/<voice>.pt`, `<out>/kokoro-de-<voice>.config.json`, `<out>/kokoro-de-<voice>.g2p.txt` |
+| TTS | `<out>/kokoro-<lang>-<voice>.pth`, `<out>/<voice>.pt`, `<out>/kokoro-<lang>-<voice>.config.json`, `<out>/kokoro-<lang>-<voice>.g2p.txt` |
 
 ## Resuming and redoing steps
 
@@ -270,9 +287,9 @@ To switch the STT model or engine, edit `config.env`, then delete `models/` and 
 - Check `ls -l /dev/kfd /dev/dri`. You need read and write access: add your user to the `video` and `render` groups and log in again.
 - For RX 7600, 7700 and 7800 cards, run `export HSA_OVERRIDE_GFX_VERSION=11.0.0` and run again.
 
-**German phonemizer failed.** Install `espeak-ng` with your package manager and run again.
+**German or English phonemizer failed.** Install `espeak-ng` with your package manager and run again.
 
-**TTS needs German.** Add `de` to `LANGS` and `de_de` to `FLEURS_CFGS` in `config.env`.
+**TTS_LANG not in LANGS.** Add the `TTS_LANG` code to `LANGS` and its FLEURS config (`de_de` or `en_us`) to `FLEURS_CFGS` in `config.env`.
 
 ## Development
 

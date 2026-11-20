@@ -1,17 +1,17 @@
-import json, os, subprocess, librosa, jiwer, soundfile as sf, torch
+import json, os, random, subprocess, librosa, jiwer, soundfile as sf, torch
 from collections import Counter
-from misaki import de
 from kokoro_symbols import TextCleaner, dicts
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 from hf_pins import rev
 from common import DEV, split, load, norm
+from tts_lang import LANG, NAME, g2p, pool
 D = "data/tts"; W = f"{D}/wav"; os.makedirs(W, exist_ok=True)
 GATE = os.environ["TTS_GATE_MODEL"]; MAX_WER = float(os.environ["TTS_GATE_WER"])
 train, test = split()
-rows = [(r, False) for r in train if r["lang"] == "de"] + [(r, True) for r in test if r["lang"] == "de"]
+rows = [(r, False) for r in train if r["lang"] == LANG] + [(r, True) for r in test if r["lang"] == LANG]
 cache = {(c["id"], c["mtime"]): c for c in load(f"{D}/gate.jsonl") if c["model"] == GATE}
 proc = model = None
-g2p, clean, why, note, keep = de.DEG2P(), TextCleaner(), Counter(), Counter(), {False: [], True: []}
+ph, clean, why, note, keep = g2p(), TextCleaner(), Counter(), Counter(), {False: [], True: []}
 secs = 0.0
 
 def to24k(r):
@@ -29,7 +29,7 @@ def gate(r, a):
         if model is None:
             proc = WhisperProcessor.from_pretrained(GATE, revision=rev(GATE)); model = WhisperForConditionalGeneration.from_pretrained(GATE, revision=rev(GATE)).to(DEV).eval()
         f = proc(librosa.resample(a, orig_sr=24000, target_sr=16000), sampling_rate=16000, return_tensors="pt").input_features.to(DEV)
-        with torch.no_grad(): hyp = proc.batch_decode(model.generate(f, language="de", task="transcribe"), skip_special_tokens=True)[0]
+        with torch.no_grad(): hyp = proc.batch_decode(model.generate(f, language=LANG, task="transcribe"), skip_special_tokens=True)[0]
         cache[key] = {"id": r["id"], "mtime": key[1], "model": GATE, "hyp": hyp, "wer": jiwer.wer(" ".join(norm(r["text"])), " ".join(norm(hyp)))}
         with open(f"{D}/gate.jsonl", "a", encoding="utf8") as fo: fo.write(json.dumps(cache[key], ensure_ascii=False) + "\n")
     return cache[key]["wer"]
@@ -39,7 +39,7 @@ for r, held in rows:
     wav = to24k(r); a, _ = sf.read(wav, dtype="float32"); dur = len(a) / 24000
     if not 2 <= dur <= 30: why["duration outside 2-30 s"] += 1; continue
     if gate(r, a) > MAX_WER: why[f"Whisper WER above {MAX_WER}"] += 1; continue
-    ipa = g2p(r["text"])[0].replace("\u028f", "y")
+    ipa = ph(r["text"])
     if len(clean(ipa)) > 510 or len(ipa) < 5: why["phoneme length"] += 1; continue
     unknown = {c for c in ipa if c not in dicts}
     if unknown: note["kept, symbols dropped by the Kokoro vocab: " + "".join(sorted(unknown))] += 1
@@ -49,8 +49,17 @@ tr, va = keep[False], keep[True]
 if not va: n = max(1, len(tr) // 20); tr, va = tr[:-n], tr[-n:]
 open(f"{D}/train_list.txt", "w", encoding="utf8").write("\n".join(tr) + "\n")
 open(f"{D}/val_list.txt", "w", encoding="utf8").write("\n".join(va) + "\n")
-rep = {"german_rows": len(rows), "train": len(tr), "val": len(va), "minutes": round(secs / 60, 1), "rejected": dict(why), "notes": dict(note)}
+rep = {"lang": LANG, "rows": len(rows), "train": len(tr), "val": len(va), "minutes": round(secs / 60, 1), "rejected": dict(why), "notes": dict(note)}
 json.dump(rep, open(f"{D}/report.json", "w"), indent=1, ensure_ascii=False)
 print("tts data:", json.dumps(rep, ensure_ascii=False))
-if not tr: raise SystemExit("no usable German clips for TTS. see data/tts/report.json and data/tts/gate.jsonl")
+if not tr: raise SystemExit(f"no usable {NAME} clips for TTS. see data/tts/report.json and data/tts/gate.jsonl")
 if len(tr) < 300: print(f"warning: {len(tr)} training clips; the published kikiri voices used 455-627")
+if LANG != "de":
+    seen = {r["text"] for r, _ in rows}; sents = [x.strip() for x in pool() if 8 <= len(x.split()) <= 25 and x.strip() not in seen]
+    random.Random(3).shuffle(sents); ood = []
+    for x in sents[:2000]:
+        p = ph(x)
+        if len(p) >= 50 and len(clean(p)) <= 510: ood.append(p)
+        if len(ood) == 200: break
+    if len(ood) < 2: raise SystemExit(f"too few {NAME} out-of-domain sentences for stage 2")
+    open(f"{D}/ood.txt", "w", encoding="utf8").write("\n".join(ood) + "\n")

@@ -4,6 +4,8 @@ Each release has a section headed `# <id> (<YYYY-MM-DD>)`, newest at the top, wh
 
 # Unreleased
 
+- The TTS workflow can train an English voice. The new `TTS_LANG` setting (`de` or `en`) picks the prompts, the phonemizer, the Whisper language for the clip check and evaluation, and the default base weights (Kokoro-82M v1.0 for English). German works as before; output files are now named `kokoro-<lang>-<voice>.*`.
+- Pin espeakng-loader 0.2.4 (bundled espeak-ng 1.52.0), phonemizer-fork 3.3.2 and spaCy 3.8.18 for TTS, and install the spaCy model en_core_web_sm 3.8.0 from a pinned URL with sha256 instead of downloading it at run time.
 - The default Hugging Face models and the FLEURS dataset are downloaded at fixed revisions, listed in `lib/hf_revisions.txt`.
 - Without a system uv, `run.sh` installs uv 0.13.9 and checks its sha256 (Linux and macOS, x86_64 and arm64), instead of the latest release.
 - TTS training now runs on the CPU when no GPU is available, or with `DEVICE=cpu`. `tts/tts_train.py` replaces the hard-coded `cuda` device in the pinned StyleTTS2 training scripts before training starts.
