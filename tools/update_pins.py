@@ -8,8 +8,9 @@ keeping locked versions where possible (used on Dependabot branches).
 """
 import datetime, hashlib, json, os, re, subprocess, sys, tempfile, urllib.parse, urllib.request
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "lib"))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.environ.get("PINS_ROOT", HERE)
+sys.path.insert(0, os.path.join(HERE, "lib"))
 from fetch import fetch, tree_sha256  # noqa: E402
 
 GRACE_DAYS = int(os.environ.get("PIN_GRACE_DAYS", 7))
