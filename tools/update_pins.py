@@ -3,11 +3,14 @@
 Without arguments: move each pin to the newest upstream version that is at
 least GRACE_DAYS old, rewrite the files and print a Markdown summary.
 With --verify: download every hashed archive and file and check its hash.
+With --locks: recompile the *.lock files for the current requirements,
+keeping locked versions where possible (used on Dependabot branches).
 """
-import datetime, hashlib, json, os, re, sys, tempfile, urllib.parse, urllib.request
+import datetime, hashlib, json, os, re, subprocess, sys, tempfile, urllib.parse, urllib.request
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(ROOT, "lib"))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.environ.get("PINS_ROOT", HERE)
+sys.path.insert(0, os.path.join(HERE, "lib"))
 from fetch import fetch, tree_sha256  # noqa: E402
 
 GRACE_DAYS = int(os.environ.get("PIN_GRACE_DAYS", 7))
@@ -22,6 +25,7 @@ GIT = [
     ("stt/stage4_whisper.sh", "OWSHA", "OWTREE", "openai/whisper"),
     ("stt/stage4_parakeet.sh", "TCSHA", "TCTREE", "handy-computer/transcribe.cpp"),
 ]
+LOCKS = [("stt/requirements-whisper.txt", "3.13"), ("stt/requirements-parakeet.txt", "3.12"), ("tts/requirements.txt", "3.12")]
 URL_REQS = [("semidark/misaki", ["tts/tts_lang.py"]), ("resemble-ai/monotonic_align", [])]
 
 
@@ -121,7 +125,32 @@ def update():
                 line = line.replace(parts[1], new[0]); notes.append(f"- {parts[0]}: {parts[1][:7]} -> {new[0][:7]} ({new[1]})")
         out.append(line)
     write("lib/hf_revisions.txt", "\n".join(out) + "\n")
+    before = {r: read(r[:-4] + ".lock") if os.path.exists(path(r[:-4] + ".lock")) else None for r, _ in LOCKS}
+    locks(upgrade=True)
+    changed = [r[:-4] + ".lock" for r, _ in LOCKS if read(r[:-4] + ".lock") != before[r]]
+    if changed: notes.append("- Refreshed the locked transitive packages in " + ", ".join(f"`{c}`" for c in changed))
     print("\n".join(notes))
+
+
+def locks(upgrade):
+    """Lock every package that the requirements do not pin, for all platforms, to releases at least GRACE_DAYS old.
+
+    torch and torchaudio follow TORCH_BACKEND and stay out of the lock, as do the
+    direct requirements, so a Dependabot bump of a direct pin only conflicts with
+    the lock when it needs newer transitive packages.
+    """
+    for req, py in LOCKS:
+        direct = [re.match(r"[A-Za-z0-9._-]+", line).group(0) for line in read(req).splitlines() if line.strip() and not line.startswith("#")]
+        cmd = ["uv", "pip", "compile", req, "--universal", "--python-version", py, "--torch-backend", "cpu", "--quiet", "--no-header", "--no-annotate",
+               "--exclude-newer", CUTOFF.strftime("%Y-%m-%dT%H:%M:%SZ"), "-o", req[:-4] + ".lock"]
+        for n in ["torch", "torchaudio", "triton"]: cmd += ["--no-emit-package", n]
+        for n in direct:
+            if n in ("torch", "torchaudio"): continue
+            cmd += ["--no-emit-package", n, "--exclude-newer-package", f"{n}=2100-01-01T00:00:00Z"]
+        if upgrade: cmd.append("--upgrade")
+        subprocess.run(cmd, cwd=ROOT, check=True)
+        lock = read(req[:-4] + ".lock")
+        write(req[:-4] + ".lock", f"# Constraints for {os.path.basename(req)}, written by tools/update_pins.py. Do not edit.\n" + lock)
 
 
 def verify():
@@ -137,4 +166,6 @@ def verify():
 
 
 if __name__ == "__main__":
-    verify() if sys.argv[1:] == ["--verify"] else update()
+    if sys.argv[1:] == ["--verify"]: verify()
+    elif sys.argv[1:] == ["--locks"]: locks(upgrade=False)
+    else: update()
