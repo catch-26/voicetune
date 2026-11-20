@@ -3,9 +3,11 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ask() { local v; read -r -p "$1 [$2]: " v; echo "${v:-$2}"; }
 have() { command -v "$1" >/dev/null; }
+pin() { grep -m1 "^$1==" lib/requirements-tools.txt; }
 kv() { if [[ $2 =~ ^[[:alnum:]_.,/:+@-]*$ ]]; then printf '%s=%s\n' "$1" "$2"; else printf '%s=%q\n' "$1" "$2"; fi; }
 need() { declare -p "$1" >/dev/null 2>&1 && return; local v=$2; [ -z "${3:-}" ] || v=$(ask "$3" "$2"); kv "$1" "$v" >> config.env; export "$1=$v"; }
 UVV=0.13.9 KSHA=a12d0410e89841e6f3c09958ae5c072f90ae1d49 SSHA=b1956da84bf4a6ccc88f2440078024f1c4bfec7d OSHA=b96fef95e6a746495f92443fac7c688f90fc57fc
+KTREE=bdaf03fb826b838f646522b43e79292e08a4ab07c1505f8da7dbb775e2d7888f STREE=343aa3effe06e56737a082fb86e23ce4071ebfb19bed7de7b9755745db10af3c OTREE=6c0ed35517e882f43291a1d61881ea5f241717b74c3a0053cdc14ce3ebe57f33
 RUN=${1:-}
 OS=$(uname -s)
 if [ ! -f config.env ]; then
@@ -71,7 +73,7 @@ if [[ $RUN == *tts* ]]; then
   KIKIRI="$DOWNLOAD_DIR/third_party/kikiri-tts-${KSHA:0:7}"; export KIKIRI
   if [ ! -f "$KIKIRI/.ok" ]; then
     rm -rf "$KIKIRI"; G=https://github.com/semidark
-    python3 lib/fetch.py "$G/kikiri-tts/archive/$KSHA.tar.gz" "$KIKIRI"; python3 lib/fetch.py "$G/StyleTTS2/archive/$SSHA.tar.gz" "$KIKIRI/StyleTTS2"; python3 lib/fetch.py "$G/kokoro/archive/$OSHA.tar.gz" "$KIKIRI/kokoro"
+    python3 lib/fetch.py "$G/kikiri-tts/archive/$KSHA.tar.gz" "$KIKIRI" "tree:$KTREE"; python3 lib/fetch.py "$G/StyleTTS2/archive/$SSHA.tar.gz" "$KIKIRI/StyleTTS2" "tree:$STREE"; python3 lib/fetch.py "$G/kokoro/archive/$OSHA.tar.gz" "$KIKIRI/kokoro" "tree:$OTREE"
     touch "$KIKIRI/.ok"
   fi
   venv .venv-tts 3.12 tts/requirements.txt; PYT=.venv-tts/bin/python
@@ -93,11 +95,11 @@ fi
 [ -z "${GPU:-}" ] || export HIP_VISIBLE_DEVICES="$GPU" CUDA_VISIBLE_DEVICES="$GPU"
 PY=${PY:-$PYD}
 if ! have ffmpeg; then
-  echo "ffmpeg not found, installing static-ffmpeg as a uv tool"; uv tool install static-ffmpeg
+  echo "ffmpeg not found, installing static-ffmpeg as a uv tool"; uv tool install "$(pin static-ffmpeg)"
   F=$(static_ffmpeg_paths | sed -n 's/^FFMPEG=//p'); [ -x "$F" ] || { echo "static-ffmpeg download failed: install ffmpeg with your package manager and rerun"; exit 1; }
   ln -sf "$F" "$T/bin/ffmpeg"
 fi
-have openssl || $PYD -c "import cryptography" 2>/dev/null || uv pip install cryptography
+have openssl || $PYD -c "import cryptography" 2>/dev/null || uv pip install "$(pin cryptography)"
 $PYD -c "import torch; print('torch', torch.__version__, 'hip', torch.version.hip); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none, using CPU (slow but works)')"
 if [ "$TORCH_BACKEND" != cpu ] && ! $PYD -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"; then
   echo "GPU not visible to torch. checks: torch version above must end in +$TORCH_BACKEND (else: rm -rf $VIRTUAL_ENV and rerun);"
@@ -131,10 +133,10 @@ else
   OUT_GLOB="$OUT_DIR/*q8_0.bin"
 fi
 if ! compgen -G "$OUT_GLOB" >/dev/null; then
-  have cmake || uv tool install cmake
-  have make || { have ninja || uv tool install ninja; export CMAKE_GENERATOR=Ninja; }
+  have cmake || uv tool install "$(pin cmake)"
+  have make || { have ninja || uv tool install "$(pin ninja)"; export CMAKE_GENERATOR=Ninja; }
   if [ -x "$T/bin/c++" ] || ! { have c++ || have g++ || have clang++; }; then
-    have python-zig || uv tool install ziglang
+    have python-zig || uv tool install "$(pin ziglang)"
     for c in cc c++ ar ranlib; do
       if [ "$c" = cc ] || [ "$c" = c++ ] || ! have "$c"; then printf '#!/bin/sh\nexec python-zig %s "$@"\n' "$c" > "$T/bin/$c"; chmod +x "$T/bin/$c"; fi
     done

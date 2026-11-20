@@ -1,7 +1,8 @@
-import os, urllib.request
+import hashlib, os, urllib.request
 LANG = os.environ.get("TTS_LANG", "de")
 NAME = {"de": "German", "en": "English"}[LANG]
 CV = f"https://raw.githubusercontent.com/common-voice/common-voice/d910b8578b57d74597c5972f217d72abb696c55a/server/data/{LANG}/sentence-collector.txt"
+CV_SHA256 = {"de": "de6bd33fc5742350690fa4be6197aafd9be2c6c9fe4b70b8c5c8670971acc117", "en": "31ac8e200449ebd7aee4a8c6bd16d4dafd076cf11f7c3efe1035f0283712d136"}[LANG]
 SAMPLE = {"de": "Guten Tag", "en": "Good morning"}[LANG]
 TEST_EN = [
     "The quick brown fox jumps over the lazy dog.",
@@ -31,7 +32,10 @@ def g2p_note():
 
 def pool():
     f = os.environ["DOWNLOAD_DIR"] + f"/cv_{LANG}_sentences.txt"
-    if not os.path.exists(f): urllib.request.urlretrieve(CV, f)
+    if not os.path.exists(f):
+        data = urllib.request.urlopen(CV, timeout=60).read()
+        if hashlib.sha256(data).hexdigest() != CV_SHA256: raise SystemExit(f"sha256 mismatch for {CV}")
+        open(f, "wb").write(data)
     lines = open(f, encoding="utf8").read().splitlines()
     own = f"data/sentences_raw.{LANG}.txt"
     if os.path.exists(own): lines += open(own, encoding="utf8").read().splitlines()
