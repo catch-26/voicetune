@@ -30,6 +30,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/update_pins.py | tee notes.md
+      - name: on a PR, also test moving every pin to upstream HEAD
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PIN_GRACE_DAYS: "0"
+        run: python3 tools/update_pins.py && python3 tools/update_pins.py --verify
       - run: git diff --stat
       - name: open or update the pin update PR
         if: github.event_name != 'pull_request'

@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 from fetch import fetch, tree_sha256  # noqa: E402
 
-GRACE_DAYS = 7
+GRACE_DAYS = int(os.environ.get("PIN_GRACE_DAYS", 7))
 CUTOFF = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=GRACE_DAYS)
 UV_TARGETS = ["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
 CV_PATHS = {"de": "server/data/de/sentence-collector.txt", "en": "server/data/en/sentence-collector.txt"}
