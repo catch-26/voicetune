@@ -1,0 +1,48 @@
+name: Pins
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths: [tools/update_pins.py, lib/fetch.py, .github/workflows/pins.yml]
+
+permissions:
+  contents: read
+
+concurrency: pins
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: ${{ github.event_name != 'pull_request' }}
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: move pins to the newest upstream versions that are at least 7 days old
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/update_pins.py | tee notes.md
+      - run: git diff --stat
+      - name: open or update the pin update PR
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          b=pins/update
+          if git diff --quiet; then echo "all pins are current"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$b"
+          git commit -qam "Update pinned upstream sources and models" -m "$(cat notes.md)"
+          git push -f origin "$b"
+          { echo "Moves pins that Dependabot cannot update to the newest upstream versions released at least 7 days ago."; echo; cat notes.md; } > body.md
+          if [ -n "$(gh pr list --head "$b" --state open --json number -q '.[].number')" ]; then gh pr edit "$b" --body-file body.md; else gh pr create --head "$b" --base main --title "Update pinned upstream sources and models" --body-file body.md; fi
+          gh workflow run ci.yml --ref "$b"

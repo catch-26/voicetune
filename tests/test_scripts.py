@@ -51,3 +51,34 @@ def test_hf_revisions_pinned():
         assert repo in run and repo in pins, repo
     for size in ["tiny.en", "tiny", "base", "small"]:
         assert "openai/whisper-" + size in pins
+
+
+def test_tool_installs_pinned():
+    import re
+    run = open(os.path.join(ROOT, "run.sh"), encoding="utf8").read()
+    pinned = {line.split("==")[0] for line in open(os.path.join(ROOT, "lib", "requirements-tools.txt"), encoding="utf8") if "==" in line}
+    installs = re.findall(r"uv (?:tool|pip) install (\"\$\(pin [\w-]+\)\"|\S+)", run)
+    assert installs
+    for arg in installs:
+        if arg.startswith("--"): continue
+        m = re.fullmatch(r'"\$\(pin ([\w-]+)\)"', arg)
+        assert m and m.group(1) in pinned, arg
+
+
+def test_fetch_checks_archive_contents(tmp_path):
+    import io
+    import tarfile
+    from unittest import mock
+    import fetch
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as t:
+        for name, body in [("top/a.txt", b"a"), ("top/sub/b.txt", b"b")]:
+            info = tarfile.TarInfo(name); info.size = len(body); t.addfile(info, io.BytesIO(body))
+    src = tmp_path / "src"; (src / "sub").mkdir(parents=True); (src / "a.txt").write_bytes(b"a"); (src / "sub" / "b.txt").write_bytes(b"b")
+    want = fetch.tree_sha256(str(src))
+    resp = mock.Mock(); resp.read.return_value = buf.getvalue()
+    with mock.patch("urllib.request.urlopen", return_value=resp):
+        fetch.fetch("https://example.invalid/x.tar.gz", str(tmp_path / "ok"), "tree:" + want)
+        assert (tmp_path / "ok" / "sub" / "b.txt").read_bytes() == b"b"
+        with pytest.raises(SystemExit):
+            fetch.fetch("https://example.invalid/x.tar.gz", str(tmp_path / "bad"), "tree:" + "0" * 64)

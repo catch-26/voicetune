@@ -65,6 +65,15 @@ jobs:
       - name: pinned requirements resolve together
         run: uv pip compile "${{ matrix.file }}" --python-version "${{ matrix.python }}" --python-platform x86_64-manylinux_2_28 --torch-backend cpu -o /dev/null
 
+  pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pinned archives and files match their hashes
+        run: python3 tools/update_pins.py --verify
+
   version:
     runs-on: ubuntu-latest
     steps:
