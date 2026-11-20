@@ -82,3 +82,8 @@ def test_fetch_checks_archive_contents(tmp_path):
         assert (tmp_path / "ok" / "sub" / "b.txt").read_bytes() == b"b"
         with pytest.raises(SystemExit):
             fetch.fetch("https://example.invalid/x.tar.gz", str(tmp_path / "bad"), "tree:" + "0" * 64)
+
+
+def test_runtime_requirements_have_locks():
+    for f in glob.glob(os.path.join(ROOT, "stt", "requirements-*.txt")) + [os.path.join(ROOT, "tts", "requirements.txt")]:
+        assert os.path.exists(f[:-4] + ".lock"), f

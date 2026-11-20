@@ -2,10 +2,10 @@ name: Pins
 
 on:
   schedule:
-    - cron: "0 2 * * *"
+    - cron: "0 3 * * *"
   workflow_dispatch:
   pull_request:
-    paths: [tools/update_pins.py, lib/fetch.py, .github/workflows/pins.yml]
+    paths: [tools/update_pins.py, lib/fetch.py, .github/workflows/pins.yml, "**/requirements*.txt"]
 
 permissions:
   contents: read
@@ -26,10 +26,14 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
       - name: move pins to the newest upstream versions that are at least 7 days old
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 tools/update_pins.py | tee notes.md
+      - name: on a PR, show what a scheduled run would commit
+        if: github.event_name == 'pull_request'
+        run: git add -N . && git diff
       - name: on a PR, also test moving every pin to upstream HEAD
         if: github.event_name == 'pull_request'
         env:
@@ -47,8 +51,38 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "$b"
-          git commit -qam "Update pinned upstream sources and models" -m "$(cat notes.md)"
+          git add -A && git commit -qm "Update pinned upstream sources and models" -m "$(cat notes.md)"
           git push -f origin "$b"
           { echo "Moves pins that Dependabot cannot update to the newest upstream versions released at least 7 days ago."; echo; cat notes.md; } > body.md
           if [ -n "$(gh pr list --head "$b" --state open --json number -q '.[].number')" ]; then gh pr edit "$b" --body-file body.md; else gh pr create --head "$b" --base main --title "Update pinned upstream sources and models" --body-file body.md; fi
           gh workflow run ci.yml --ref "$b"
+
+  dependabot-locks:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: recompile the locks on open Dependabot pip PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for b in $(gh pr list --app dependabot --state open --json headRefName -q '.[].headRefName | select(startswith("dependabot/pip/"))'); do
+            git checkout -q -B "$b" "origin/$b"
+            python3 tools/update_pins.py --locks
+            if git diff --quiet; then echo "$b: locks current"; continue; fi
+            git commit -qam "Update the locked transitive packages"
+            git push origin "$b"
+            gh workflow run ci.yml --ref "$b"
+          done

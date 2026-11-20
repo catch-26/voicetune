@@ -68,7 +68,7 @@ have uv || {
   esac
   echo "uv not found, installing uv $UVV into $T/bin"; python3 lib/fetch.py "https://github.com/astral-sh/uv/releases/download/$UVV/uv-$A.tar.gz" "$T/bin" "$s"
 }
-venv() { export VIRTUAL_ENV="$PWD/$1"; [ -d "$1" ] || uv venv --python "$2" "$1"; if [ ! -f "$1/.installed" ]; then uv pip install --torch-backend "$TORCH_BACKEND" -r "$3"; touch "$1/.installed"; fi; }
+venv() { export VIRTUAL_ENV="$PWD/$1"; [ -d "$1" ] || uv venv --python "$2" "$1"; if [ ! -f "$1/.installed" ]; then uv pip install --torch-backend "$TORCH_BACKEND" -r "$3" -c "${3%.txt}.lock"; touch "$1/.installed"; fi; }
 if [[ $RUN == *tts* ]]; then
   KIKIRI="$DOWNLOAD_DIR/third_party/kikiri-tts-${KSHA:0:7}"; export KIKIRI
   if [ ! -f "$KIKIRI/.ok" ]; then
