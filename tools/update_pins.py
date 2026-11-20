@@ -142,9 +142,10 @@ def locks(upgrade):
         direct = [re.match(r"[A-Za-z0-9._-]+", line).group(0) for line in read(req).splitlines() if line.strip() and not line.startswith("#")]
         cmd = ["uv", "pip", "compile", req, "--universal", "--python-version", py, "--torch-backend", "cpu", "--quiet", "--no-header", "--no-annotate",
                "--exclude-newer", CUTOFF.strftime("%Y-%m-%dT%H:%M:%SZ"), "-o", req[:-4] + ".lock"]
+        for n in ["torch", "torchaudio", "triton"]: cmd += ["--no-emit-package", n]
         for n in direct:
-            cmd += ["--no-emit-package", n]
-            if n not in ("torch", "torchaudio"): cmd += ["--exclude-newer-package", f"{n}=2100-01-01T00:00:00Z"]
+            if n in ("torch", "torchaudio"): continue
+            cmd += ["--no-emit-package", n, "--exclude-newer-package", f"{n}=2100-01-01T00:00:00Z"]
         if upgrade: cmd.append("--upgrade")
         subprocess.run(cmd, cwd=ROOT, check=True)
         lock = read(req[:-4] + ".lock")
