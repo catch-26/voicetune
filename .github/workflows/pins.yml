@@ -82,7 +82,7 @@ jobs:
           t=$(mktemp -d); cp -r tools lib "$t"
           for b in $(gh pr list --app dependabot --state open --json headRefName -q '.[].headRefName | select(startswith("dependabot/pip/"))'); do
             git checkout -q -B "$b" "origin/$b"
-            PINS_ROOT=$PWD python3 "$t/tools/update_pins.py" --locks
+            if ! PINS_ROOT=$PWD python3 "$t/tools/update_pins.py" --locks; then echo "::warning::$b: requirements do not resolve, locks left as they are"; git checkout -q -- . && git clean -fdq -- stt tts; continue; fi
             if [ -z "$(git status --porcelain -- stt tts)" ]; then echo "$b: locks current"; continue; fi
             git add stt/*.lock tts/*.lock && git commit -qm "Update the locked transitive packages"
             git push origin "$b"
