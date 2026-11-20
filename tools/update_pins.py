@@ -124,7 +124,7 @@ def update():
                 line = line.replace(parts[1], new[0]); notes.append(f"- {parts[0]}: {parts[1][:7]} -> {new[0][:7]} ({new[1]})")
         out.append(line)
     write("lib/hf_revisions.txt", "\n".join(out) + "\n")
-    before = {r: read(r[:-4] + ".lock") for r, _ in LOCKS}
+    before = {r: read(r[:-4] + ".lock") if os.path.exists(path(r[:-4] + ".lock")) else None for r, _ in LOCKS}
     locks(upgrade=True)
     changed = [r[:-4] + ".lock" for r, _ in LOCKS if read(r[:-4] + ".lock") != before[r]]
     if changed: notes.append("- Refreshed the locked transitive packages in " + ", ".join(f"`{c}`" for c in changed))

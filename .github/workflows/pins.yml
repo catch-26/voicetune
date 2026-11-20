@@ -30,6 +30,7 @@ jobs:
       - name: move pins to the newest upstream versions that are at least 7 days old
         env:
           GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
         run: python3 tools/update_pins.py | tee notes.md
       - name: on a PR, show what a scheduled run would commit
         if: github.event_name == 'pull_request'
