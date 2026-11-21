@@ -19,7 +19,7 @@ click==8.5.1
 cloudpickle==3.1.2
 colorama==0.4.6
 cuda-bindings==13.5.0 ; sys_platform != 'darwin'
-cuda-pathfinder==1.8.6 ; sys_platform != 'darwin'
+cuda-pathfinder==1.9.0 ; sys_platform != 'darwin'
 cwevals==0.0.1b1
 cytoolz==1.2.0
 datasets==5.2.0
@@ -129,7 +129,7 @@ toml==0.10.2
 toolz==1.2.0
 torchmetrics==1.9.0
 tqdm==4.70.1
-transformers==5.22.2
+transformers==5.23.0
 truststore==0.10.5 ; sys_platform != 'emscripten'
 typer==0.29.1
 typing-extensions==4.16.0
