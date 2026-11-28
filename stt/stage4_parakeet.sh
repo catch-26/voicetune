@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-TCSHA=adfc50210a3f026a655a3e19937d90ef2bf0728c
-TCTREE=0cae37b0f7a76e4f9baa1422ff006a934e2cb926ca6471eab2fef67ea9c80297
+TCSHA=cfa237c2551a4b2d3a56ff8fe5461e3c67c51772
+TCTREE=d1552de3d2e907d15760833d79b03288023c691efb6b39de49c462062b3b9bc2
 TP="$DOWNLOAD_DIR/third_party"; mkdir -p "$TP" "$OUT_DIR"
 source stt/ggml_build.sh
 get() {
