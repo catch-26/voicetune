@@ -1,16 +1,16 @@
 # Constraints for requirements-whisper.txt, written by tools/update_pins.py. Do not edit.
-annotated-doc==0.0.6
+annotated-doc==0.0.7
 annotated-types==0.8.0
 anyio==4.16.0 ; sys_platform != 'emscripten'
 cffi==2.1.1
 click==8.5.1
 colorama==0.4.6 ; sys_platform == 'win32'
-filelock==4.2.10
+filelock==4.2.12
 fsspec==2026.9.0
 h11==0.16.0 ; sys_platform != 'emscripten'
 hf-xet==1.8.0 ; platform_machine == 'AMD64' or platform_machine == 'ARM64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'
-httpcore2==2.16.0 ; sys_platform != 'emscripten'
-httpx2==2.16.0
+httpcore2==2.16.2 ; sys_platform != 'emscripten'
+httpx2==2.16.2
 httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
 idna==3.20
 jinja2==3.1.6
@@ -22,12 +22,12 @@ networkx==3.7
 packaging==26.3
 psutil==7.2.2
 pycparser==3.12 ; implementation_name != 'PyPy'
-pydantic==2.14.3
-pydantic-core==2.50.4
+pydantic==2.14.4
+pydantic-core==2.50.5
 pygments==2.21.0
-pyyaml==6.0.3
+pyyaml==6.0.4
 rapidfuzz==3.14.6
-regex==2026.11.9
+regex==2026.11.19
 rich==15.0.0
 safetensors==0.8.0
 setuptools==84.2.1
@@ -36,6 +36,6 @@ sympy==1.14.0
 tokenizers==0.23.3
 tqdm==4.70.1
 truststore==0.10.5 ; sys_platform != 'emscripten'
-typer==0.29.1
+typer==0.29.2
 typing-extensions==4.16.0
 typing-inspection==0.4.5
